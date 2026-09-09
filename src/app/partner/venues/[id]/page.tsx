@@ -6,7 +6,7 @@ import { all } from "@/lib/db";
 import { bookingsForVenueDate, courtsForVenue, getVenueById, listSports } from "@/lib/queries";
 import { slotsForCourt } from "@/lib/slots";
 import { addDays, fmtDate, fmtHour, fmtINR, isValidISODate, todayISO } from "@/lib/time";
-import { blockSlot, partnerCancelBooking, unblockSlot, updatePricing } from "@/lib/actions";
+import { blockSlot, markPaidAtVenue, partnerCancelBooking, unblockSlot, updatePricing } from "@/lib/actions";
 import { Alert } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Manage venue" };
@@ -30,6 +30,7 @@ export default async function ManageVenue({ params, searchParams }: { params: Pr
   const pricing = all<{ court_id: number; day_type: string; start_hour: number; end_hour: number; price: number }>(
     "SELECT pr.court_id, pr.day_type, pr.start_hour, pr.end_hour, pr.price FROM pricing_rules pr JOIN courts c ON c.id = pr.court_id WHERE c.venue_id = ? ORDER BY pr.court_id, pr.day_type, pr.start_hour", v.id);
   const revenue = bookings.filter((b) => b.status === "confirmed").reduce((s, b) => s + b.base_amount, 0);
+  const toCollect = bookings.filter((b) => b.status === "confirmed" && b.payment_provider !== "razorpay" && !b.paid_at).reduce((s, b) => s + b.total_amount, 0);
   const hoursOfDay = grid[0]?.slots.map((s) => s.hour) ?? [];
 
   return (
@@ -50,7 +51,7 @@ export default async function ManageVenue({ params, searchParams }: { params: Pr
             {Array.from({ length: 7 }, (_, i) => addDays(today, i)).map((d) => (
               <Link key={d} href={`/partner/venues/${v.id}?date=${d}`} className={`chip border ${d === date ? "bg-ink text-white border-ink" : "bg-white border-slate-200"}`}>{i0(d, today)}</Link>))}
             <form className="flex items-center gap-1"><input type="date" name="date" defaultValue={date} className="input py-1" /><button className="btn-secondary py-1">Go</button></form>
-            <span className="ml-auto text-sm">Revenue {fmtDate(date)}: <b>{fmtINR(revenue)}</b> · {bookings.filter((b) => b.status === "confirmed").length} bookings</span>
+            <span className="ml-auto text-sm">Revenue {fmtDate(date)}: <b>{fmtINR(revenue)}</b> · {bookings.filter((b) => b.status === "confirmed").length} bookings{toCollect > 0 && <> · <span className="chip bg-amber-100 text-amber-800">{fmtINR(toCollect)} to collect</span></>}</span>
           </div>
 
           <div className="card overflow-x-auto">
@@ -73,9 +74,19 @@ export default async function ManageVenue({ params, searchParams }: { params: Pr
               {bookings.length === 0 && <p className="mt-2 text-sm text-slate-500">No bookings.</p>}
               <ul className="mt-3 divide-y divide-slate-100 text-sm">{bookings.map((b) => (
                 <li key={b.id} className="flex items-center gap-3 py-2">
-                  <div className="flex-1"><div className="font-semibold">{fmtHour(b.start_hour)} – {fmtHour(b.end_hour)} · {b.court_name}</div><div className="text-slate-500">{b.user_name ?? "Player"} · +91 {b.user_phone} · {b.code} · {fmtINR(b.base_amount)}</div></div>
+                  <div className="flex-1"><div className="font-semibold">{fmtHour(b.start_hour)} – {fmtHour(b.end_hour)} · {b.court_name}</div><div className="text-slate-500">{b.user_name ?? "Player"} · +91 {b.user_phone} · {b.code}</div>
+                    {b.status === "confirmed" && (b.payment_provider === "razorpay" ? <span className="chip bg-brand-100 text-brand-700">Paid online · {fmtINR(b.total_amount)}</span>
+                      : b.paid_at ? <span className="chip bg-brand-100 text-brand-700">Collected {fmtINR(b.total_amount)} ✓</span>
+                      : <span className="chip bg-amber-100 text-amber-800">Collect {fmtINR(b.total_amount)} at counter{b.karma_redeemed ? ` (${b.karma_redeemed} Karma applied)` : ""}</span>)}
+                  </div>
                   {b.status === "confirmed" ? (
-                    <form action={partnerCancelBooking}><input type="hidden" name="venue_id" value={v.id} /><input type="hidden" name="booking_id" value={b.id} /><button className="btn-ghost py-1 text-rose-600">Cancel &amp; refund</button></form>
+                    <div className="flex flex-col items-end gap-1">
+                      {b.payment_provider !== "razorpay" && (
+                        <form action={markPaidAtVenue} className="flex items-center gap-1"><input type="hidden" name="venue_id" value={v.id} /><input type="hidden" name="booking_id" value={b.id} />
+                          {b.paid_at ? <button className="btn-ghost py-1 text-xs">Undo paid</button> : <><select name="method" className="input w-24 py-1 text-xs" defaultValue="cash"><option value="cash">Cash</option><option value="upi">UPI</option><option value="card">Card</option></select><button className="btn-primary py-1 text-xs">Mark paid</button></>}
+                        </form>)}
+                      <form action={partnerCancelBooking}><input type="hidden" name="venue_id" value={v.id} /><input type="hidden" name="booking_id" value={b.id} /><button className="btn-ghost py-1 text-xs text-rose-600">{b.payment_provider === "razorpay" ? "Cancel & refund" : "Cancel booking"}</button></form>
+                    </div>
                   ) : <span className="chip bg-slate-200">cancelled</span>}
                 </li>))}</ul>
             </section>

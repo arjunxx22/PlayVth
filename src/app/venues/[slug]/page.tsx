@@ -10,6 +10,7 @@ import { Stars } from "@/components/ui";
 import SlotPicker from "@/components/SlotPicker";
 import { expireStaleHolds } from "@/lib/payments";
 import { Reveal } from "@/components/motion/Reveal";
+import { paymentMode } from "@/lib/karma";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const v = getVenue((await params).slug);
@@ -102,13 +103,23 @@ export default async function VenuePage({ params, searchParams }: { params: Prom
 
         <aside className="space-y-4">
           <div className="card p-5">
-            <h3 className="font-bold">Cancellation policy</h3>
-            <ul className="mt-2 space-y-1 text-sm text-slate-600">
-              <li>✔ Cancel <b>{v.free_cancel_hours}+ hours</b> before: refund minus {v.cancel_fee_pct}% cancellation fee.</li>
-              <li>◐ Between 2 and {v.free_cancel_hours} hours before: 50% refund.</li>
-              <li>✖ Under 2 hours before the slot: no cancellation.</li>
-              <li className="text-xs text-slate-400">Convenience fee is non-refundable. Refunds reach the original payment method in 5–7 working days.</li>
-            </ul>
+            {paymentMode() === "razorpay" ? (<>
+              <h3 className="font-bold">Cancellation policy</h3>
+              <ul className="mt-2 space-y-1 text-sm text-slate-600">
+                <li>✔ Cancel <b>{v.free_cancel_hours}+ hours</b> before: refund minus {v.cancel_fee_pct}% cancellation fee.</li>
+                <li>◐ Between 2 and {v.free_cancel_hours} hours before: 50% refund.</li>
+                <li>✖ Under 2 hours before the slot: no cancellation.</li>
+                <li className="text-xs text-slate-400">Convenience fee is non-refundable. Refunds reach the original payment method in 5–7 working days.</li>
+              </ul>
+            </>) : (<>
+              <h3 className="font-bold">Book now, pay at the venue</h3>
+              <ul className="mt-2 space-y-1 text-sm text-slate-600">
+                <li>🏟️ No online payment. Pay at the counter before you play.</li>
+                <li>💳 Cash, UPI and cards accepted at the venue.</li>
+                <li>✔ Free cancellation up to 2 hours before your slot.</li>
+                <li className="text-xs text-slate-400">No convenience fee. Karma discounts are applied to the amount you pay at the venue.</li>
+              </ul>
+            </>)}
           </div>
           <div className="card p-5">
             <h3 className="font-bold">Pricing</h3>

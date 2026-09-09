@@ -34,7 +34,7 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
             <div><Pop><div className="text-lg font-extrabold text-brand-700">Booking confirmed!</div></Pop><Pop delay={0.15}><p className="text-sm text-brand-700/80">You earned <b>+3 Karma</b>. Show the code below at the venue.</p></Pop></div>
           </div></>
         )}
-        {sp.cancelled && <Alert kind="info">Booking cancelled. {b.refund_amount ? `${fmtINR(b.refund_amount)} will be refunded to your original payment method in 5–7 working days.` : "No refund applicable."}</Alert>}
+        {sp.cancelled && <Alert kind="info">Booking cancelled. {b.refund_amount ? `${fmtINR(b.refund_amount)} will be refunded to your original payment method in 5–7 working days.` : b.payment_provider === "razorpay" ? "No refund applicable." : "Nothing was charged, so no refund is needed."}</Alert>}
         {b.status === "pending_payment" && (
           <div className="card p-5 border-amber-200 bg-amber-50">
             <h3 className="font-bold text-amber-900">Payment pending</h3>
@@ -42,6 +42,13 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
             <div className="mt-3"><RetryPaymentButton bookingId={b.id} /></div>
           </div>
         )}
+        {b.status === "confirmed" && b.payment_provider !== "razorpay" && !b.paid_at && (
+          <div className="card flex items-start gap-3 border-amber-200 bg-amber-50 p-4 text-sm">
+            <span className="text-2xl">🏟️</span>
+            <div><b className="text-amber-900">Pay {fmtINR(b.total_amount)} at the venue.</b><p className="text-amber-800">Show this booking code at the counter before your slot. Cash, UPI and cards accepted. No online charge has been made.</p></div>
+          </div>
+        )}
+        {b.paid_at && b.payment_provider !== "razorpay" && <Alert kind="success">Paid at venue ✓</Alert>}
         {(b.status === "failed" || b.status === "expired") && <Alert kind="error">This booking was not paid ({b.status}). Any Karma you reserved has been returned. <Link className="font-semibold underline" href={`/venues/${b.venue_slug}`}>Pick a slot again</Link>.</Alert>}
         {sp.error && <Alert kind="error">{sp.error}</Alert>}
         <Reveal delay={0.2}><div className="card overflow-hidden">
@@ -60,9 +67,9 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
             </dl>
             <dl className="mt-5 space-y-1 border-t border-slate-100 pt-4 text-sm">
               <div className="flex justify-between"><dt>Court charges</dt><dd>{fmtINR(b.base_amount)}</dd></div>
-              <div className="flex justify-between"><dt>Convenience fee</dt><dd>{fmtINR(b.convenience_fee)}</dd></div>
+              {b.convenience_fee > 0 && <div className="flex justify-between"><dt>Convenience fee</dt><dd>{fmtINR(b.convenience_fee)}</dd></div>}
               {b.karma_redeemed > 0 && <div className="flex justify-between text-brand-700"><dt>Karma redeemed</dt><dd>−{fmtINR(b.karma_redeemed)}</dd></div>}
-              <div className="flex justify-between font-extrabold"><dt>{b.status === "pending_payment" ? "Payable" : `Paid via ${b.payment_method.toUpperCase()}`}</dt><dd>{fmtINR(b.total_amount)}</dd></div>
+              <div className="flex justify-between font-extrabold"><dt>{b.payment_provider === "razorpay" ? (b.status === "pending_payment" ? "Payable" : "Paid online") : b.paid_at ? `Paid at venue (${b.payment_method.replace("pay_at_venue", "counter").replace("_", " ")})` : "To pay at venue"}</dt><dd>{fmtINR(b.total_amount)}</dd></div>
               {b.razorpay_payment_id && <div className="flex justify-between text-xs text-slate-500"><dt>Razorpay payment ID</dt><dd className="font-mono">{b.razorpay_payment_id}</dd></div>}
               {b.status === "cancelled" && <div className="flex justify-between text-slate-600"><dt>Refund{b.refund_status ? ` (${b.refund_status})` : ""}</dt><dd>{fmtINR(b.refund_amount ?? 0)}</dd></div>}
               {b.razorpay_refund_id && <div className="flex justify-between text-xs text-slate-500"><dt>Razorpay refund ID</dt><dd className="font-mono">{b.razorpay_refund_id}</dd></div>}
@@ -75,7 +82,7 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
             {preview.allowed ? (
               <form action={cancelBooking} className="mt-2 flex flex-wrap items-center justify-between gap-3">
                 <input type="hidden" name="booking_id" value={b.id} />
-                <p className="text-sm text-slate-600">You&apos;ll get <b>{fmtINR(preview.refund)}</b> back{preview.karmaBack ? ` and ${preview.karmaBack} Karma returned` : ""}. The convenience fee is not refunded.</p>
+                <p className="text-sm text-slate-600">{b.payment_provider === "razorpay" ? <>You&apos;ll get <b>{fmtINR(preview.refund)}</b> back{preview.karmaBack ? ` and ${preview.karmaBack} Karma returned` : ""}. The convenience fee is not refunded.</> : <>Nothing was charged, so there&apos;s nothing to refund{preview.karmaBack ? `; your ${preview.karmaBack} Karma will be returned` : ""}. Cancelling frees the court for someone else.</>}</p>
                 <button className="btn-danger">Cancel booking</button>
               </form>
             ) : <p className="mt-2 text-sm text-slate-500">{preview.reason}</p>}

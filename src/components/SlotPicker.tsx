@@ -80,7 +80,7 @@ export default function SlotPicker({ courts, date, returnTo }: { courts: CourtSl
             initial={reduce ? false : { y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} transition={{ type: "spring", stiffness: 380, damping: 30 }}>
             <div className="text-sm">
               <b>{court.name}</b> · {fmtHour(hours[0])} – {fmtHour(hours[hours.length - 1] + 1)} · {hours.length} hr
-              <div className="text-slate-500">Subtotal <b className="text-ink"><CountUp to={total} prefix="₹" duration={0.5} /></b> + convenience fee</div>
+              <div className="text-slate-500">Subtotal <b className="text-ink"><CountUp to={total} prefix="₹" duration={0.5} animateOnMount={false} /></b> + convenience fee</div>
             </div>
             <Link href={`/book?court=${court.id}&date=${date}&hours=${hours.join(",")}&return_to=${encodeURIComponent(returnTo)}`} className="btn-primary">Proceed to book →</Link>
           </motion.div>

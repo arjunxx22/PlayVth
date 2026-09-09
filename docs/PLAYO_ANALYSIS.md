@@ -143,7 +143,8 @@ For scale, the same schema ports 1:1 to PostgreSQL (add PostGIS for distance sea
 - [x] Venue discovery: search, sport chips, max price, sort
 - [x] Venue page: hero, amenities, reviews (+ post review), cancellation policy, court × hour slot grid with live availability and peak/weekend pricing, 7-day date strip, multi-hour selection
 - [x] Checkout: Karma slider (capped at 20%), convenience fee, transactional double-booking protection, booking code
-- [x] Razorpay payments: order creation, Standard Checkout, signature verification, amount check, webhooks (captured / failed / refund), 10-minute slot holds with expiry, retry payment, real refunds on cancellation; demo mode when keys are absent
+- [x] Pay-at-venue booking flow (default): instant confirmation, no fee, venue marks the amount collected
+- [x] Razorpay payments (optional, PAYMENT_MODE=razorpay): order creation, Standard Checkout, signature verification, amount check, webhooks (captured / failed / refund), 10-minute slot holds with expiry, retry payment, real refunds on cancellation; demo mode when keys are absent
 - [x] Booking page with policy-driven refund preview and cancellation
 - [x] Play: game feed with sport / date / skill filters, host a game, request-to-join, host accept / decline, leave, cancel, player list with skill levels
 - [x] Coaching directory with enquiries

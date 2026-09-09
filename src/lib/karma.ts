@@ -19,3 +19,11 @@ export function maxKarmaRedeemable(base: number, userKarma: number): number {
 
 /** A pending (unpaid) booking holds its slot for this long before the hold lapses. */
 export const HOLD_MINUTES = 10;
+
+/**
+ * How bookings are paid. "venue" (default): the player pays at the venue counter, no online charge, no convenience fee.
+ * "razorpay": online payment via Razorpay (requires PAYMENT_MODE=razorpay plus the Razorpay keys).
+ */
+export function paymentMode(): "venue" | "razorpay" {
+  return process.env.PAYMENT_MODE === "razorpay" && process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET ? "razorpay" : "venue";
+}

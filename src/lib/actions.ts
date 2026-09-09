@@ -8,10 +8,10 @@ import { all, get, run, transaction } from "./db";
 import { getCurrentUser, isDemoOtp, issueOtp, logoutCurrent, normalizePhone, requireUser, verifyOtpAndLogin } from "./auth";
 import { priceFor, slotsForCourt } from "./slots";
 import { isValidISODate, minutesUntil } from "./time";
-import { convenienceFee, KARMA_PER_BOOKING, KARMA_PER_GAME, maxKarmaRedeemable, MIN_CANCEL_LEAD_MINUTES } from "./karma";
+import { convenienceFee, KARMA_PER_BOOKING, KARMA_PER_GAME, maxKarmaRedeemable, MIN_CANCEL_LEAD_MINUTES, paymentMode } from "./karma";
 import { getBooking, getGame, getVenueById } from "./queries";
 import { addKarma, cancelWithRefund, expireStaleHolds } from "./payments";
-import { createOrder, isRazorpayEnabled, razorpayKeyId } from "./razorpay";
+import { createOrder, razorpayKeyId } from "./razorpay";
 
 export type RazorpayCheckout = {
   keyId: string; orderId: string; amount: number; currency: string; bookingId: number; code: string;
@@ -92,10 +92,10 @@ export async function createBooking(_: ActionState, fd: FormData): Promise<Actio
   if (minutesUntil(date, start) <= 0) return { error: "That slot has already started." };
 
   const wantKarma = Math.max(0, Math.floor(num(fd, "karma")));
-  const payment = ["upi", "card", "netbanking", "wallet"].includes(str(fd, "payment")) ? str(fd, "payment") : "upi";
+  const online = paymentMode() === "razorpay";
+  const payment = online ? "online" : "pay_at_venue";
 
   const code = "PV" + randomBytes(3).toString("hex").toUpperCase();
-  const online = isRazorpayEnabled();
   let bookingId = 0;
   let total = 0;
   try {
@@ -108,16 +108,16 @@ export async function createBooking(_: ActionState, fd: FormData): Promise<Actio
         if (!s || s.status !== "available") throw new Error(`Slot ${h}:00 is no longer available.`);
       }
       const base = hours.reduce((sum, h) => sum + priceFor(court.id, date, h), 0);
-      const fee = convenienceFee(base);
+      const fee = online ? convenienceFee(base) : 0; // no platform fee when paying at the venue
       const fresh = get<{ karma: number }>("SELECT karma FROM users WHERE id = ?", user.id)!;
       const karma = Math.min(wantKarma, maxKarmaRedeemable(base, fresh.karma));
       total = base + fee - karma;
-      // Online: hold the slot as pending_payment until Razorpay confirms. Demo: confirm immediately.
+      // Online: hold the slot as pending_payment until Razorpay confirms. Pay at venue: confirm immediately, venue collects the total.
       const r = run(
         `INSERT INTO bookings(code, user_id, venue_id, court_id, sport_id, date, start_hour, end_hour, base_amount, convenience_fee, karma_redeemed, total_amount, payment_method, status, payment_provider)
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         code, user.id, venue.id, court.id, court.sport_id, date, start, end, base, fee, karma, total, payment,
-        online ? "pending_payment" : "confirmed", online ? "razorpay" : "demo",
+        online ? "pending_payment" : "confirmed", online ? "razorpay" : "venue",
       );
       if (karma > 0) addKarma(user.id, -karma, `Redeemed on booking ${code}`);
       if (!online) addKarma(user.id, KARMA_PER_BOOKING, `Venue booking ${code}`);
@@ -178,6 +178,7 @@ export async function previewCancel(bookingId: number, userId: number): Promise<
   if (b.status !== "confirmed") return { allowed: false, reason: "Already cancelled", refund: 0, karmaBack: 0 };
   const lead = minutesUntil(b.date, b.start_hour);
   if (lead <= MIN_CANCEL_LEAD_MINUTES) return { allowed: false, reason: "Cancellations close 2 hours before the slot starts.", refund: 0, karmaBack: 0 };
+  if (b.payment_provider !== "razorpay" || !b.paid_at) return { allowed: true, refund: 0, karmaBack: b.karma_redeemed }; // nothing was charged online
   const v = getVenueById(b.venue_id)!;
   const payableBase = b.base_amount - b.karma_redeemed; // convenience fee is non-refundable
   const refund = lead >= v.free_cancel_hours * 60
@@ -412,12 +413,24 @@ export async function partnerCancelBooking(fd: FormData) {
   requireOwner(user.id, venueId);
   const b = getBooking(id);
   if (!b || b.venue_id !== venueId || b.status !== "confirmed") return;
-  // Venue-initiated cancellations refund everything paid, including the convenience fee.
+  // Venue-initiated cancellations refund everything paid online, including the convenience fee. Pay-at-venue bookings have nothing to refund.
   try {
-    await cancelWithRefund(b, b.total_amount, "venue_cancellation", b.karma_redeemed, false);
+    await cancelWithRefund(b, b.payment_provider === "razorpay" ? b.total_amount : 0, "venue_cancellation", b.karma_redeemed, false);
   } catch (e) {
     redirect(`/partner/venues/${venueId}?date=${b.date}&error=${encodeURIComponent(e instanceof Error ? e.message : "Refund failed")}`);
   }
+  revalidatePath(`/partner/venues/${venueId}`);
+  redirect(`/partner/venues/${venueId}?date=${b.date}`);
+}
+
+/** Venue staff confirm they collected the amount at the counter. */
+export async function markPaidAtVenue(fd: FormData) {
+  const user = await requireUser();
+  const venueId = num(fd, "venue_id"), id = num(fd, "booking_id");
+  requireOwner(user.id, venueId);
+  const b = getBooking(id);
+  if (!b || b.venue_id !== venueId || b.status !== "confirmed") return;
+  run("UPDATE bookings SET paid_at = CASE WHEN paid_at IS NULL THEN datetime('now') ELSE NULL END, payment_method = ? WHERE id = ?", str(fd, "method") || b.payment_method, id);
   revalidatePath(`/partner/venues/${venueId}`);
   redirect(`/partner/venues/${venueId}?date=${b.date}`);
 }

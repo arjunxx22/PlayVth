@@ -32,26 +32,22 @@ export default function CheckoutForm(p: { courtId: number; date: string; hours: 
       {p.online ? (
         <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">You&apos;ll pay securely via <b>Razorpay</b> (UPI, cards, net banking, wallets). Your slot is held for 10 minutes while you pay.</p>
       ) : (
-        <div>
-          <label className="label">Payment method</label>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {[["upi", "UPI"], ["card", "Card"], ["netbanking", "Net banking"], ["wallet", "Wallet"]].map(([v, l], i) => (
-              <label key={v} className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm has-[:checked]:border-brand-600 has-[:checked]:bg-brand-50">
-                <input type="radio" name="payment" value={v} defaultChecked={i === 0} className="accent-brand-600" />{l}
-              </label>
-            ))}
+        <div className="flex items-start gap-3 rounded-xl border border-brand-200 bg-brand-50 p-4">
+          <span className="text-2xl">🏟️</span>
+          <div className="text-sm">
+            <div className="font-bold text-brand-700">Pay at the venue</div>
+            <p className="mt-0.5 text-brand-700/80">Nothing to pay now. Show your booking code at the counter and pay <b>{fmtINR(total)}</b> by cash, UPI or card before your slot.</p>
           </div>
-          <p className="mt-1 text-xs text-slate-400">Demo mode: payment is simulated. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to take real payments.</p>
         </div>
       )}
 
       <dl className="space-y-1 text-sm">
         <div className="flex justify-between"><dt>Court charges ({p.hours.length} hr)</dt><dd>{fmtINR(p.base)}</dd></div>
-        <div className="flex justify-between"><dt>Convenience fee</dt><dd>{fmtINR(p.fee)}</dd></div>
+        {p.fee > 0 && <div className="flex justify-between"><dt>Convenience fee</dt><dd>{fmtINR(p.fee)}</dd></div>}
         {karma > 0 && <motion.div className="flex justify-between text-brand-700" initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}><dt>Karma discount</dt><dd>−{fmtINR(karma)}</dd></motion.div>}
-        <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-extrabold"><dt>Total payable</dt><dd><CountUp to={total} prefix="₹" duration={0.4} /></dd></div>
+        <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-extrabold"><dt>{p.online ? "Total payable" : "To pay at venue"}</dt><dd><CountUp to={total} prefix="₹" duration={0.4} animateOnMount={false} /></dd></div>
       </dl>
-      <button className="btn-primary w-full" disabled={pending}>{pending ? (p.online ? "Opening secure payment…" : "Confirming…") : `Pay ${fmtINR(total)} & confirm`}</button>
+      <button className="btn-primary w-full" disabled={pending}>{pending ? (p.online ? "Opening secure payment…" : "Confirming…") : p.online ? `Pay ${fmtINR(total)} & confirm` : "Confirm booking"}</button>
     </motion.form>
   );
 }

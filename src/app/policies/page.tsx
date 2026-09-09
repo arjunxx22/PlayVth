@@ -5,7 +5,14 @@ export default function Policies() {
   return (
     <div className="container-x py-10 prose prose-slate max-w-3xl">
       <h1 className="text-3xl font-extrabold">Policies</h1>
-      <h2 className="mt-8 text-xl font-bold">Cancellation &amp; refunds</h2>
+      <h2 className="mt-8 text-xl font-bold">Paying for bookings</h2>
+      <ul className="mt-2 list-disc space-y-1 pl-5 text-slate-700">
+        <li>Bookings are confirmed instantly and paid <b>at the venue</b> before you play. Show your booking code at the counter; cash, UPI and cards are accepted.</li>
+        <li>No convenience fee is charged for pay-at-venue bookings. Any Karma you redeem reduces the amount you pay at the counter.</li>
+        <li>Cancel from the app up to 2 hours before your slot so the court frees up for someone else. Repeated no-shows may lead to booking restrictions.</li>
+      </ul>
+      <h2 className="mt-8 text-xl font-bold">Cancellation &amp; refunds (online payments)</h2>
+      <p className="mt-1 text-sm text-slate-500">These rules apply only when online payment is enabled.</p>
       <ul className="mt-2 list-disc space-y-1 pl-5 text-slate-700">
         <li>Each venue sets its own free-cancellation window and cancellation fee. Both are shown on the venue page and before you confirm.</li>
         <li>Cancelling before the free-cancellation window refunds the court charges minus the venue&apos;s cancellation fee.</li>

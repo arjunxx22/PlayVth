@@ -79,7 +79,7 @@ export async function cancelWithRefund(b: Booking, refundInr: number, reason: st
     refundId = r.id;
     refundStatus = r.status === "processed" ? "processed" : "pending";
   } else if (refundInr > 0) {
-    refundStatus = "processed"; // demo provider
+    refundStatus = "processed"; // nothing was charged online
   }
   transaction(() => {
     const r = run("UPDATE bookings SET status = 'cancelled', refund_amount = ?, razorpay_refund_id = ?, refund_status = ?, cancelled_at = datetime('now') WHERE id = ? AND status = 'confirmed'",

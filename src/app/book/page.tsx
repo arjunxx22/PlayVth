@@ -8,7 +8,7 @@ import { priceFor, slotsForCourt } from "@/lib/slots";
 import { fmtDate, fmtHour, fmtINR, isValidISODate } from "@/lib/time";
 import { convenienceFee, maxKarmaRedeemable } from "@/lib/karma";
 import CheckoutForm from "@/components/CheckoutForm";
-import { isRazorpayEnabled } from "@/lib/razorpay";
+import { paymentMode } from "@/lib/karma";
 import { expireStaleHolds } from "@/lib/payments";
 import RetryPaymentButton from "@/components/RetryPaymentButton";
 
@@ -37,7 +37,8 @@ export default async function BookPage({ searchParams }: { searchParams: Promise
       user.id, court.id, date, hours[0], hours[hours.length - 1] + 1)
     : undefined;
   const base = hours.reduce((s, h) => s + priceFor(court.id, date, h), 0);
-  const fee = convenienceFee(base);
+  const online = paymentMode() === "razorpay";
+  const fee = online ? convenienceFee(base) : 0;
   const maxKarma = maxKarmaRedeemable(base, user.karma);
 
   return (
@@ -64,17 +65,26 @@ export default async function BookPage({ searchParams }: { searchParams: Promise
           ) : unavailable.length > 0 ? (
             <div className="card border-rose-200 bg-rose-50 p-5 text-rose-800">Some of your selected slots were just taken. <Link className="font-semibold underline" href={sp.return_to || `/venues/${venue.slug}`}>Pick again</Link>.</div>
           ) : (
-            <CheckoutForm courtId={court.id} date={date} hours={hours} base={base} fee={fee} maxKarma={maxKarma} userKarma={user.karma} returnTo={sp.return_to ?? ""} online={isRazorpayEnabled()} />
+            <CheckoutForm courtId={court.id} date={date} hours={hours} base={base} fee={fee} maxKarma={maxKarma} userKarma={user.karma} returnTo={sp.return_to ?? ""} online={online} />
           )}
         </div>
         <aside className="card p-5 text-sm h-fit">
-          <h3 className="font-bold">Cancellation policy</h3>
-          <ul className="mt-2 space-y-1 text-slate-600">
-            <li>{venue.free_cancel_hours}+ hrs before: refund minus {venue.cancel_fee_pct}% fee</li>
-            <li>2–{venue.free_cancel_hours} hrs before: 50% refund</li>
-            <li>Under 2 hrs: no cancellation</li>
-            <li className="text-xs text-slate-400">Convenience fee {fmtINR(fee)} is non-refundable.</li>
-          </ul>
+          <h3 className="font-bold">{online ? "Cancellation policy" : "Pay at the venue"}</h3>
+          {online ? (
+            <ul className="mt-2 space-y-1 text-slate-600">
+              <li>{venue.free_cancel_hours}+ hrs before: refund minus {venue.cancel_fee_pct}% fee</li>
+              <li>2–{venue.free_cancel_hours} hrs before: 50% refund</li>
+              <li>Under 2 hrs: no cancellation</li>
+              <li className="text-xs text-slate-400">Convenience fee {fmtINR(fee)} is non-refundable.</li>
+            </ul>
+          ) : (
+            <ul className="mt-2 space-y-1 text-slate-600">
+              <li>Nothing is charged now. Pay <b>{fmtINR(base)}</b> (less any Karma you redeem) at the counter before you play.</li>
+              <li>Cash, UPI and cards are accepted at the venue.</li>
+              <li>Free to cancel up to 2 hours before your slot. Please cancel if you can&apos;t make it so the court frees up.</li>
+              <li className="text-xs text-slate-400">Repeated no-shows can lead to booking restrictions.</li>
+            </ul>
+          )}
         </aside>
       </div>
     </div>

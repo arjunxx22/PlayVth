@@ -39,11 +39,11 @@ Every push to the connected branch redeploys automatically. Set the same domain 
 
 The same Dockerfile runs on Fly.io (`fly launch`, add a volume at `/data`) or Render (Docker service + disk at `/data`).
 
-### Payments (Razorpay)
+### Payments
 
-Copy `.env.example` to `.env.local` and set `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET`. Without keys the app runs in demo mode and simulates payment.
+**Default: pay at the venue.** Bookings confirm instantly, nothing is charged online and there is no convenience fee. The booking page tells the player what to pay at the counter, and the partner scheduler shows "Collect ₹X" with a **Mark paid** button (cash / UPI / card). Cancellation is free up to 2 hours before the slot.
 
-How the online flow works:
+**Optional: online payments with Razorpay.** Set `PAYMENT_MODE=razorpay` plus `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET` (see `.env.example`). The integration is complete and tested; how it works:
 
 1. `createBooking` re-checks availability in a transaction, inserts the booking as `pending_payment` (the slot is held for 10 minutes), reserves any redeemed Karma, and creates a Razorpay Order for the total.
 2. The browser opens Razorpay Standard Checkout with that order (UPI, cards, net banking, wallets).
