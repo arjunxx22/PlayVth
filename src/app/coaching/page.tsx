@@ -5,6 +5,7 @@ import { cityBySlug, listCoaches, listSports } from "@/lib/queries";
 import { enquireCoach } from "@/lib/actions";
 import { fmtINR } from "@/lib/time";
 import { Alert, Empty, PageTitle, Stars } from "@/components/ui";
+import { Stagger, StaggerItem, Hover } from "@/components/motion/Reveal";
 
 export const metadata: Metadata = { title: "Coaching & academies" };
 
@@ -25,9 +26,9 @@ export default async function CoachingPage({ searchParams }: { searchParams: Pro
         {!sp.all && <Link href={`/coaching?all=1${sp.sport ? `&sport=${sp.sport}` : ""}`} className="chip border border-dashed border-slate-300">Show all cities</Link>}
       </div>
       {coaches.length ? (
-        <div className="grid gap-4 md:grid-cols-2">
+        <Stagger className="grid gap-4 md:grid-cols-2">
           {coaches.map((c) => (
-            <div key={c.id} className="card p-5">
+            <StaggerItem key={c.id}><Hover className="h-full"><div className="card h-full p-5">
               <div className="flex items-start gap-3">
                 <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-brand-50 text-3xl">{c.sport_icon}</div>
                 <div className="flex-1">
@@ -42,8 +43,8 @@ export default async function CoachingPage({ searchParams }: { searchParams: Pro
                   </div>
                 </div>
               </div>
-            </div>))}
-        </div>
+            </div></Hover></StaggerItem>))}
+        </Stagger>
       ) : <Empty title="No coaches listed here yet" hint="Try another sport or show all cities." />}
     </div>
   );

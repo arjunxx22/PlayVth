@@ -9,6 +9,9 @@ import { Alert } from "@/components/ui";
 import RetryPaymentButton from "@/components/RetryPaymentButton";
 import { expireStaleHolds } from "@/lib/payments";
 import { HOLD_MINUTES } from "@/lib/karma";
+import Confetti from "@/components/motion/Confetti";
+import SuccessCheck from "@/components/motion/SuccessCheck";
+import { Reveal, Pop } from "@/components/motion/Reveal";
 
 export const metadata: Metadata = { title: "Booking" };
 
@@ -24,7 +27,13 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
   return (
     <div className="container-x py-8">
       <div className="mx-auto max-w-2xl space-y-4">
-        {sp.new && <Alert kind="success">🎉 Booking confirmed! You earned 3 Karma. Show the code below at the venue.</Alert>}
+        {sp.new && (
+          <><Confetti />
+          <div className="card flex items-center gap-4 border-brand-200 bg-brand-50 p-5">
+            <SuccessCheck />
+            <div><Pop><div className="text-lg font-extrabold text-brand-700">Booking confirmed!</div></Pop><Pop delay={0.15}><p className="text-sm text-brand-700/80">You earned <b>+3 Karma</b>. Show the code below at the venue.</p></Pop></div>
+          </div></>
+        )}
         {sp.cancelled && <Alert kind="info">Booking cancelled. {b.refund_amount ? `${fmtINR(b.refund_amount)} will be refunded to your original payment method in 5–7 working days.` : "No refund applicable."}</Alert>}
         {b.status === "pending_payment" && (
           <div className="card p-5 border-amber-200 bg-amber-50">
@@ -35,10 +44,10 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
         )}
         {(b.status === "failed" || b.status === "expired") && <Alert kind="error">This booking was not paid ({b.status}). Any Karma you reserved has been returned. <Link className="font-semibold underline" href={`/venues/${b.venue_slug}`}>Pick a slot again</Link>.</Alert>}
         {sp.error && <Alert kind="error">{sp.error}</Alert>}
-        <div className="card overflow-hidden">
+        <Reveal delay={0.2}><div className="card overflow-hidden">
           <div className={`p-5 text-white ${b.status === "confirmed" ? "bg-ink" : "bg-slate-500"}`}>
             <div className="text-xs uppercase tracking-widest text-white/70">Booking code</div>
-            <div className="text-3xl font-extrabold tracking-wider">{b.code}</div>
+            <Pop delay={0.35}><div className="text-3xl font-extrabold tracking-wider">{b.code}</div></Pop>
             <div className="mt-1 text-sm text-white/80">Status: <b className="uppercase">{b.status.replace("_", " ")}</b></div>
           </div>
           <div className="p-5">
@@ -59,7 +68,7 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
               {b.razorpay_refund_id && <div className="flex justify-between text-xs text-slate-500"><dt>Razorpay refund ID</dt><dd className="font-mono">{b.razorpay_refund_id}</dd></div>}
             </dl>
           </div>
-        </div>
+        </div></Reveal>
         {b.status === "confirmed" && (
           <div className="card p-5">
             <h3 className="font-bold">Need to cancel?</h3>

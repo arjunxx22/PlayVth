@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Game, VenueCard } from "@/lib/queries";
 import { fmtDate, fmtINR, fmtRange } from "@/lib/time";
+import { Hover } from "./motion/Reveal";
 
 export function Stars({ rating, count }: { rating: number; count?: number }) {
   return (
@@ -13,8 +14,8 @@ export function Stars({ rating, count }: { rating: number; count?: number }) {
 
 export function VenueCardView({ v }: { v: VenueCard }) {
   return (
-    <Link href={`/venues/${v.slug}`} className="card overflow-hidden hover:shadow-md transition group">
-      <div className={`theme-${v.theme} relative h-36 flex items-end p-3`}>
+    <Hover className="h-full"><Link href={`/venues/${v.slug}`} className="card card-shine flex h-full flex-col overflow-hidden hover:shadow-lg transition-shadow group">
+      <div className={`theme-${v.theme} relative h-36 flex items-end p-3 transition-transform duration-500 group-hover:scale-[1.03]`}>
         <div className="flex flex-wrap gap-1">
           {v.sports.slice(0, 4).map((s) => <span key={s.id} className="chip bg-white/90 text-ink">{s.icon} {s.name}</span>)}
           {v.sports.length > 4 && <span className="chip bg-white/70">+{v.sports.length - 4}</span>}
@@ -30,10 +31,10 @@ export function VenueCardView({ v }: { v: VenueCard }) {
         </div>
         <div className="mt-3 flex items-center justify-between text-sm">
           <span className="text-slate-500">from <b className="text-ink">{fmtINR(v.starting_price)}</b>/hr</span>
-          <span className="font-semibold text-brand-700">Book now →</span>
+          <span className="font-semibold text-brand-700 transition-transform duration-300 group-hover:translate-x-1">Book now →</span>
         </div>
       </div>
-    </Link>
+    </Link></Hover>
   );
 }
 
@@ -42,13 +43,13 @@ export const SKILL_LABEL: Record<string, string> = { any: "All levels", beginner
 export function GameCardView({ g }: { g: Game }) {
   const left = g.max_players - g.accepted_count;
   return (
-    <Link href={`/play/${g.id}`} className="card p-4 hover:shadow-md transition flex gap-4">
-      <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-brand-50 text-3xl">{g.sport_icon}</div>
+    <Hover className="h-full"><Link href={`/play/${g.id}`} className="card flex h-full gap-4 p-4 hover:shadow-lg transition-shadow group">
+      <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-brand-50 text-3xl transition-transform duration-300 group-hover:rotate-[-10deg] group-hover:scale-110">{g.sport_icon}</div>
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
           <h3 className="font-bold truncate">{g.sport_name} · {SKILL_LABEL[g.skill_level]}</h3>
           {g.status === "full" || left <= 0 ? <span className="chip bg-slate-200 text-slate-700">Full</span>
-            : <span className="chip bg-brand-100 text-brand-700">{left} spot{left === 1 ? "" : "s"} left</span>}
+            : <span className="chip bg-brand-100 text-brand-700"><span className="pulse-dot inline-block h-1.5 w-1.5 rounded-full bg-brand-600" />{left} spot{left === 1 ? "" : "s"} left</span>}
         </div>
         <p className="text-sm text-slate-600 truncate">📍 {g.location_text}</p>
         <p className="text-sm text-slate-600">🗓 {fmtDate(g.date)} · {fmtRange(g.start_hour, g.end_hour)}</p>
@@ -57,7 +58,7 @@ export function GameCardView({ g }: { g: Game }) {
           <span className="font-semibold">{g.price_per_player ? `${fmtINR(g.price_per_player)}/player` : "Free"}</span>
         </div>
       </div>
-    </Link>
+    </Link></Hover>
   );
 }
 

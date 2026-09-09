@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getCitySlug } from "@/lib/auth";
 import { cityBySlug, listSports, listVenues } from "@/lib/queries";
 import { Empty, PageTitle, VenueCardView } from "@/components/ui";
+import { Stagger, StaggerItem } from "@/components/motion/Reveal";
 
 export const metadata: Metadata = { title: "Book venues" };
 
@@ -42,7 +43,7 @@ export default async function VenuesPage({ searchParams }: { searchParams: Promi
         {(sp.q || sp.max || sp.sort) && <Link href={link({ q: undefined, max: undefined, sort: undefined })} className="btn-ghost">Clear</Link>}
       </form>
       {venues.length ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{venues.map((v) => <VenueCardView key={v.id} v={v} />)}</div>
+        <Stagger className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{venues.map((v) => <StaggerItem key={v.id}><VenueCardView v={v} /></StaggerItem>)}</Stagger>
       ) : <Empty title="No venues match" hint="Try another sport, a wider price range, or switch city from the top bar." cta={{ href: "/partner/new", label: "List your venue" }} />}
     </div>
   );

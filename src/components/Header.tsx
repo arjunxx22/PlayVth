@@ -3,6 +3,7 @@ import { getCitySlug, getCurrentUser } from "@/lib/auth";
 import { listCities } from "@/lib/queries";
 import { logout } from "@/lib/actions";
 import CitySelect from "./CitySelect";
+import NavLinks from "./motion/NavLinks";
 
 export default async function Header() {
   const [user, citySlug] = await Promise.all([getCurrentUser(), getCitySlug()]);
@@ -10,17 +11,12 @@ export default async function Header() {
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-slate-200">
       <div className="container-x flex h-16 items-center gap-4">
-        <Link href="/" className="flex items-center gap-2 font-extrabold text-xl tracking-tight">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-600 text-white">P</span>
+        <Link href="/" className="group flex items-center gap-2 font-extrabold text-xl tracking-tight">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-600 text-white transition-transform duration-300 group-hover:rotate-[-8deg] group-hover:scale-110">P</span>
           <span>Play<span className="text-brand-600">Vth</span></span>
         </Link>
         <CitySelect cities={cities} current={citySlug} />
-        <nav className="ml-auto hidden md:flex items-center gap-1 text-sm font-medium">
-          <Link href="/venues" className="btn-ghost">Book</Link>
-          <Link href="/play" className="btn-ghost">Play</Link>
-          <Link href="/coaching" className="btn-ghost">Learn</Link>
-          <Link href="/partner" className="btn-ghost">List your venue</Link>
-        </nav>
+        <NavLinks />
         {user ? (
           <div className="flex items-center gap-2">
             <Link href="/profile" className="btn-secondary">
@@ -36,11 +32,7 @@ export default async function Header() {
           <Link href="/login" className="btn-primary whitespace-nowrap"><span className="sm:hidden">Login</span><span className="hidden sm:inline">Login / Sign up</span></Link>
         )}
       </div>
-      <nav className="md:hidden border-t border-slate-100 flex text-sm font-medium">
-        {[["/venues", "Book"], ["/play", "Play"], ["/coaching", "Learn"], ["/partner", "Partner"]].map(([h, l]) => (
-          <Link key={h} href={h} className="flex-1 py-2 text-center hover:bg-slate-50">{l}</Link>
-        ))}
-      </nav>
+      <NavLinks mobile />
     </header>
   );
 }

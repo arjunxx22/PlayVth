@@ -6,6 +6,8 @@ import { bookingsForUser, gamesForUser, karmaLedger, userSkills } from "@/lib/qu
 import { fmtDate, fmtINR, fmtRange, todayISO } from "@/lib/time";
 import { Alert, PageTitle, SKILL_LABEL } from "@/components/ui";
 import { deleteAccount } from "@/lib/actions";
+import CountUp from "@/components/motion/CountUp";
+import { Reveal } from "@/components/motion/Reveal";
 
 export const metadata: Metadata = { title: "My profile" };
 
@@ -58,13 +60,13 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           </section>
         </div>
         <aside className="space-y-6">
-          <section className="card p-5 bg-amber-50 border-amber-200">
+          <Reveal><section className="card p-5 bg-amber-50 border-amber-200">
             <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">Karma points</div>
-            <div className="text-4xl font-extrabold text-amber-800">⚡ {user.karma}</div>
+            <div className="text-4xl font-extrabold text-amber-800">⚡ <CountUp to={user.karma} /></div>
             <p className="mt-1 text-sm text-amber-800/80">Redeem up to 20% of court charges on your next booking.</p>
             <p className="mt-2 text-xs text-amber-800/70">Referral code: <b>{user.referral_code}</b> · 50 Karma per friend</p>
             <ul className="mt-3 max-h-56 space-y-1 overflow-auto text-xs text-amber-900/80">{ledger.map((l) => <li key={l.id} className="flex justify-between"><span>{l.reason}</span><b>{l.delta > 0 ? "+" : ""}{l.delta}</b></li>)}</ul>
-          </section>
+          </section></Reveal>
           <section className="card p-5">
             <h2 className="font-bold">Skill levels</h2>
             {skills.length === 0 ? <p className="mt-2 text-sm text-slate-500">Set your levels so hosts can match you. <Link href="/profile/edit" className="font-semibold text-brand-700">Add sports</Link>.</p>

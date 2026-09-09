@@ -4,6 +4,7 @@ import { getCitySlug } from "@/lib/auth";
 import { cityBySlug, listGames, listSports } from "@/lib/queries";
 import { addDays, fmtDate, isValidISODate, todayISO } from "@/lib/time";
 import { Empty, GameCardView, PageTitle, SKILL_LABEL } from "@/components/ui";
+import { Stagger, StaggerItem } from "@/components/motion/Reveal";
 
 export const metadata: Metadata = { title: "Play with others" };
 
@@ -37,7 +38,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
           <Link key={k} href={link({ skill: k === "any" ? undefined : k })} className={`chip border ${(sp.skill ?? "any") === k ? "bg-brand-600 text-white border-brand-600" : "bg-white border-slate-200"}`}>{SKILL_LABEL[k]}</Link>
         ))}
       </div>
-      {games.length ? <div className="grid gap-4 sm:grid-cols-2">{games.map((g) => <GameCardView key={g.id} g={g} />)}</div>
+      {games.length ? <Stagger className="grid gap-4 sm:grid-cols-2">{games.map((g) => <StaggerItem key={g.id}><GameCardView g={g} /></StaggerItem>)}</Stagger>
         : <Empty title="No games yet" hint="Be the first to host one in your area. It takes 30 seconds." cta={{ href: "/play/new", label: "Host a game" }} />}
     </div>
   );

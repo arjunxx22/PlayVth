@@ -9,6 +9,7 @@ import { addReview } from "@/lib/actions";
 import { Stars } from "@/components/ui";
 import SlotPicker from "@/components/SlotPicker";
 import { expireStaleHolds } from "@/lib/payments";
+import { Reveal } from "@/components/motion/Reveal";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const v = getVenue((await params).slug);
@@ -72,14 +73,14 @@ export default async function VenuePage({ params, searchParams }: { params: Prom
             <div className="mt-4"><SlotPicker courts={courts} date={date} returnTo={returnTo} /></div>
           </section>
 
-          <section className="card p-5">
+          <Reveal><section className="card p-5">
             <h2 className="text-xl font-extrabold">About</h2>
             <p className="mt-2 text-slate-700">{v.description}</p>
             <h3 className="mt-5 font-bold">Amenities</h3>
             <div className="mt-2 flex flex-wrap gap-2">{amenities.map((a) => <span key={a} className="chip bg-slate-100 text-slate-700">✓ {a}</span>)}</div>
-          </section>
+          </section></Reveal>
 
-          <section id="reviews" className="card p-5">
+          <Reveal><section id="reviews" className="card p-5">
             <h2 className="text-xl font-extrabold">Reviews</h2>
             {reviews.length ? (
               <ul className="mt-3 divide-y divide-slate-100">
@@ -96,7 +97,7 @@ export default async function VenuePage({ params, searchParams }: { params: Prom
                 <button className="btn-secondary">Post review</button>
               </form>
             ) : <p className="mt-3 text-sm text-slate-500"><Link href={`/login?next=/venues/${v.slug}`} className="font-semibold text-brand-700">Login</Link> to write a review.</p>}
-          </section>
+          </section></Reveal>
         </div>
 
         <aside className="space-y-4">

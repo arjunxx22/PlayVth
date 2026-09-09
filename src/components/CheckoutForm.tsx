@@ -4,6 +4,8 @@ import { createBooking, type ActionState } from "@/lib/actions";
 import { fmtINR } from "@/lib/time";
 import { Alert } from "./ui";
 import RazorpayCheckout from "./RazorpayCheckout";
+import CountUp from "./motion/CountUp";
+import { motion } from "motion/react";
 
 export default function CheckoutForm(p: { courtId: number; date: string; hours: number[]; base: number; fee: number; maxKarma: number; userKarma: number; returnTo: string; online: boolean }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(createBooking, {});
@@ -13,7 +15,7 @@ export default function CheckoutForm(p: { courtId: number; date: string; hours: 
   if (state.checkout) return <RazorpayCheckout checkout={state.checkout} />;
 
   return (
-    <form action={action} className="card p-5 space-y-5">
+    <motion.form action={action} className="card p-5 space-y-5" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }}>
       <input type="hidden" name="court_id" value={p.courtId} />
       <input type="hidden" name="date" value={p.date} />
       <input type="hidden" name="hours" value={p.hours.join(",")} />
@@ -46,10 +48,10 @@ export default function CheckoutForm(p: { courtId: number; date: string; hours: 
       <dl className="space-y-1 text-sm">
         <div className="flex justify-between"><dt>Court charges ({p.hours.length} hr)</dt><dd>{fmtINR(p.base)}</dd></div>
         <div className="flex justify-between"><dt>Convenience fee</dt><dd>{fmtINR(p.fee)}</dd></div>
-        {karma > 0 && <div className="flex justify-between text-brand-700"><dt>Karma discount</dt><dd>−{fmtINR(karma)}</dd></div>}
-        <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-extrabold"><dt>Total payable</dt><dd>{fmtINR(total)}</dd></div>
+        {karma > 0 && <motion.div className="flex justify-between text-brand-700" initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}><dt>Karma discount</dt><dd>−{fmtINR(karma)}</dd></motion.div>}
+        <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-extrabold"><dt>Total payable</dt><dd><CountUp to={total} prefix="₹" duration={0.4} /></dd></div>
       </dl>
       <button className="btn-primary w-full" disabled={pending}>{pending ? (p.online ? "Opening secure payment…" : "Confirming…") : `Pay ${fmtINR(total)} & confirm`}</button>
-    </form>
+    </motion.form>
   );
 }
