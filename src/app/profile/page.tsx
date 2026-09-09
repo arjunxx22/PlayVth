@@ -16,9 +16,9 @@ export default async function ProfilePage() {
   const ledger = karmaLedger(user.id);
   const skills = userSkills(user.id);
   const today = todayISO();
-  const upcoming = bookings.filter((b) => b.status === "confirmed" && b.date >= today);
-  const past = bookings.filter((b) => !(b.status === "confirmed" && b.date >= today));
-  const statusChip = (s: string) => s === "confirmed" ? "bg-brand-100 text-brand-700" : "bg-slate-200 text-slate-600";
+  const upcoming = bookings.filter((b) => (b.status === "confirmed" || b.status === "pending_payment") && b.date >= today);
+  const past = bookings.filter((b) => !upcoming.includes(b));
+  const statusChip = (s: string) => s === "confirmed" ? "bg-brand-100 text-brand-700" : s === "pending_payment" ? "bg-amber-100 text-amber-800" : "bg-slate-200 text-slate-600";
   return (
     <div className="container-x py-8">
       <PageTitle title={user.name ?? "Complete your profile"} sub={`+91 ${user.phone}${user.email ? ` · ${user.email}` : ""}`}
@@ -32,7 +32,7 @@ export default async function ProfilePage() {
               <li key={b.id}><Link href={`/bookings/${b.id}`} className="flex items-center gap-3 py-3 hover:bg-slate-50 rounded-lg">
                 <span className="text-2xl">{b.sport_icon}</span>
                 <div className="flex-1 text-sm"><div className="font-semibold">{b.venue_name} · {b.court_name}</div><div className="text-slate-500">{fmtDate(b.date)} · {fmtRange(b.start_hour, b.end_hour)}</div></div>
-                <div className="text-right text-sm"><div className="font-bold">{fmtINR(b.total_amount)}</div><span className={`chip ${statusChip(b.status)}`}>{b.code}</span></div>
+                <div className="text-right text-sm"><div className="font-bold">{fmtINR(b.total_amount)}</div><span className={`chip ${statusChip(b.status)}`}>{b.status === "pending_payment" ? "Payment pending" : b.code}</span></div>
               </Link></li>))}</ul>
           </section>
           <section className="card p-5">

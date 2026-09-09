@@ -124,7 +124,7 @@ For scale, the same schema ports 1:1 to PostgreSQL (add PostGIS for distance sea
 | Mobile | React Native (Expo) sharing the API and types |
 | Database | PostgreSQL (+ PostGIS), Redis for slot locks & rate limiting |
 | Auth / SMS | Firebase Phone Auth or MSG91 / Twilio OTP; Google & Apple sign-in |
-| Payments | Razorpay (UPI, cards, net banking, wallets), webhooks for capture & refunds |
+| Payments | Razorpay (UPI, cards, net banking, wallets), webhooks for capture & refunds — implemented |
 | Maps | Google Maps Places + Distance Matrix (or Mapbox) |
 | Media | S3 / Cloudinary for venue photos |
 | Notifications | FCM push, WhatsApp Business API, SendGrid email |
@@ -142,7 +142,8 @@ For scale, the same schema ports 1:1 to PostgreSQL (add PostGIS for distance sea
 - [x] City selector, home page with sports, top venues, nearby games
 - [x] Venue discovery: search, sport chips, max price, sort
 - [x] Venue page: hero, amenities, reviews (+ post review), cancellation policy, court × hour slot grid with live availability and peak/weekend pricing, 7-day date strip, multi-hour selection
-- [x] Checkout: Karma slider (capped at 20%), convenience fee, payment method (simulated), transactional double-booking protection, booking code
+- [x] Checkout: Karma slider (capped at 20%), convenience fee, transactional double-booking protection, booking code
+- [x] Razorpay payments: order creation, Standard Checkout, signature verification, amount check, webhooks (captured / failed / refund), 10-minute slot holds with expiry, retry payment, real refunds on cancellation; demo mode when keys are absent
 - [x] Booking page with policy-driven refund preview and cancellation
 - [x] Play: game feed with sport / date / skill filters, host a game, request-to-join, host accept / decline, leave, cancel, player list with skill levels
 - [x] Coaching directory with enquiries
@@ -153,7 +154,7 @@ For scale, the same schema ports 1:1 to PostgreSQL (add PostGIS for distance sea
 
 ### Phase 2 (next 2–4 weeks)
 
-- Real payments (Razorpay order → capture → webhook → refund API)
+- Payment extras: coupons, partial refunds review queue, settlement/payout reports for partners
 - SMS OTP provider; Google / Apple login
 - Venue photos upload; map + distance ("near me") with PostGIS
 - Reschedule booking; coupons; city-level Karma caps; referral crediting

@@ -16,3 +16,6 @@ export function convenienceFee(base: number): number {
 export function maxKarmaRedeemable(base: number, userKarma: number): number {
   return Math.max(0, Math.min(userKarma, Math.floor((base * KARMA_MAX_REDEEM_PCT) / 100)));
 }
+
+/** A pending (unpaid) booking holds its slot for this long before the hold lapses. */
+export const HOLD_MINUTES = 10;

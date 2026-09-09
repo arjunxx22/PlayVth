@@ -6,6 +6,9 @@ import { getBooking } from "@/lib/queries";
 import { cancelBooking, previewCancel } from "@/lib/actions";
 import { fmtDate, fmtHour, fmtINR } from "@/lib/time";
 import { Alert } from "@/components/ui";
+import RetryPaymentButton from "@/components/RetryPaymentButton";
+import { expireStaleHolds } from "@/lib/payments";
+import { HOLD_MINUTES } from "@/lib/karma";
 
 export const metadata: Metadata = { title: "Booking" };
 
@@ -14,6 +17,7 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
   const sp = await searchParams;
   const user = await getCurrentUser();
   if (!user) redirect(`/login?next=/bookings/${id}`);
+  expireStaleHolds();
   const b = getBooking(Number(id));
   if (!b || (b.user_id !== user.id && user.role !== "admin")) notFound();
   const preview = await previewCancel(b.id, user.id);
@@ -21,13 +25,21 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
     <div className="container-x py-8">
       <div className="mx-auto max-w-2xl space-y-4">
         {sp.new && <Alert kind="success">🎉 Booking confirmed! You earned 3 Karma. Show the code below at the venue.</Alert>}
-        {sp.cancelled && <Alert kind="info">Booking cancelled. {b.refund_amount ? `${fmtINR(b.refund_amount)} will be refunded to your ${b.payment_method.toUpperCase()} in 5–7 working days.` : "No refund applicable."}</Alert>}
+        {sp.cancelled && <Alert kind="info">Booking cancelled. {b.refund_amount ? `${fmtINR(b.refund_amount)} will be refunded to your original payment method in 5–7 working days.` : "No refund applicable."}</Alert>}
+        {b.status === "pending_payment" && (
+          <div className="card p-5 border-amber-200 bg-amber-50">
+            <h3 className="font-bold text-amber-900">Payment pending</h3>
+            <p className="mt-1 text-sm text-amber-800">Your slot is held for {HOLD_MINUTES} minutes from when you started checkout. Complete the payment to confirm.</p>
+            <div className="mt-3"><RetryPaymentButton bookingId={b.id} /></div>
+          </div>
+        )}
+        {(b.status === "failed" || b.status === "expired") && <Alert kind="error">This booking was not paid ({b.status}). Any Karma you reserved has been returned. <Link className="font-semibold underline" href={`/venues/${b.venue_slug}`}>Pick a slot again</Link>.</Alert>}
         {sp.error && <Alert kind="error">{sp.error}</Alert>}
         <div className="card overflow-hidden">
           <div className={`p-5 text-white ${b.status === "confirmed" ? "bg-ink" : "bg-slate-500"}`}>
             <div className="text-xs uppercase tracking-widest text-white/70">Booking code</div>
             <div className="text-3xl font-extrabold tracking-wider">{b.code}</div>
-            <div className="mt-1 text-sm text-white/80">Status: <b className="uppercase">{b.status}</b></div>
+            <div className="mt-1 text-sm text-white/80">Status: <b className="uppercase">{b.status.replace("_", " ")}</b></div>
           </div>
           <div className="p-5">
             <div className="flex items-center gap-3"><span className="text-3xl">{b.sport_icon}</span>
@@ -41,8 +53,10 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
               <div className="flex justify-between"><dt>Court charges</dt><dd>{fmtINR(b.base_amount)}</dd></div>
               <div className="flex justify-between"><dt>Convenience fee</dt><dd>{fmtINR(b.convenience_fee)}</dd></div>
               {b.karma_redeemed > 0 && <div className="flex justify-between text-brand-700"><dt>Karma redeemed</dt><dd>−{fmtINR(b.karma_redeemed)}</dd></div>}
-              <div className="flex justify-between font-extrabold"><dt>Paid via {b.payment_method.toUpperCase()}</dt><dd>{fmtINR(b.total_amount)}</dd></div>
-              {b.status === "cancelled" && <div className="flex justify-between text-slate-600"><dt>Refund</dt><dd>{fmtINR(b.refund_amount ?? 0)}</dd></div>}
+              <div className="flex justify-between font-extrabold"><dt>{b.status === "pending_payment" ? "Payable" : `Paid via ${b.payment_method.toUpperCase()}`}</dt><dd>{fmtINR(b.total_amount)}</dd></div>
+              {b.razorpay_payment_id && <div className="flex justify-between text-xs text-slate-500"><dt>Razorpay payment ID</dt><dd className="font-mono">{b.razorpay_payment_id}</dd></div>}
+              {b.status === "cancelled" && <div className="flex justify-between text-slate-600"><dt>Refund{b.refund_status ? ` (${b.refund_status})` : ""}</dt><dd>{fmtINR(b.refund_amount ?? 0)}</dd></div>}
+              {b.razorpay_refund_id && <div className="flex justify-between text-xs text-slate-500"><dt>Razorpay refund ID</dt><dd className="font-mono">{b.razorpay_refund_id}</dd></div>}
             </dl>
           </div>
         </div>

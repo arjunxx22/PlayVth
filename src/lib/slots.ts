@@ -1,5 +1,6 @@
 import { all, get } from "./db";
 import { dayType, minutesUntil } from "./time";
+import { HOLD_MINUTES } from "./karma";
 
 export type SlotStatus = "available" | "booked" | "blocked" | "past";
 export type Slot = { hour: number; price: number; status: SlotStatus };
@@ -18,7 +19,9 @@ export function priceFor(courtId: number, date: string, hour: number): number {
 
 export function slotsForCourt(courtId: number, date: string, openHour: number, closeHour: number): Slot[] {
   const booked = all<{ start_hour: number; end_hour: number }>(
-    "SELECT start_hour, end_hour FROM bookings WHERE court_id = ? AND date = ? AND status = 'confirmed'", courtId, date,
+    `SELECT start_hour, end_hour FROM bookings WHERE court_id = ? AND date = ?
+       AND (status = 'confirmed' OR (status = 'pending_payment' AND created_at > datetime('now', ?)))`,
+    courtId, date, `-${HOLD_MINUTES} minutes`,
   );
   const blocked = all<{ start_hour: number; end_hour: number }>(
     "SELECT start_hour, end_hour FROM blocked_slots WHERE court_id = ? AND date = ?", courtId, date,

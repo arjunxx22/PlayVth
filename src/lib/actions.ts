@@ -10,16 +10,17 @@ import { priceFor, slotsForCourt } from "./slots";
 import { isValidISODate, minutesUntil } from "./time";
 import { convenienceFee, KARMA_PER_BOOKING, KARMA_PER_GAME, maxKarmaRedeemable, MIN_CANCEL_LEAD_MINUTES } from "./karma";
 import { getBooking, getGame, getVenueById } from "./queries";
+import { addKarma, cancelWithRefund, expireStaleHolds } from "./payments";
+import { createOrder, isRazorpayEnabled, razorpayKeyId } from "./razorpay";
 
-export type ActionState = { error?: string; ok?: boolean; otpSent?: boolean; phone?: string; devOtp?: string };
+export type RazorpayCheckout = {
+  keyId: string; orderId: string; amount: number; currency: string; bookingId: number; code: string;
+  name: string; phone: string; email: string; description: string;
+};
+export type ActionState = { error?: string; ok?: boolean; otpSent?: boolean; phone?: string; devOtp?: string; checkout?: RazorpayCheckout };
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const num = (fd: FormData, k: string) => Number(fd.get(k) ?? 0);
-
-function addKarma(userId: number, delta: number, reason: string) {
-  run("UPDATE users SET karma = karma + ? WHERE id = ?", delta, userId);
-  run("INSERT INTO karma_ledger(user_id, delta, reason) VALUES (?, ?, ?)", userId, delta, reason);
-}
 
 // ---------- City ----------
 export async function setCity(fd: FormData) {
@@ -94,8 +95,11 @@ export async function createBooking(_: ActionState, fd: FormData): Promise<Actio
   const payment = ["upi", "card", "netbanking", "wallet"].includes(str(fd, "payment")) ? str(fd, "payment") : "upi";
 
   const code = "PV" + randomBytes(3).toString("hex").toUpperCase();
+  const online = isRazorpayEnabled();
   let bookingId = 0;
+  let total = 0;
   try {
+    expireStaleHolds();
     bookingId = transaction(() => {
       // Re-check availability inside the transaction to avoid double booking.
       const slots = slotsForCourt(court.id, date, venue.open_hour, venue.close_hour);
@@ -107,21 +111,63 @@ export async function createBooking(_: ActionState, fd: FormData): Promise<Actio
       const fee = convenienceFee(base);
       const fresh = get<{ karma: number }>("SELECT karma FROM users WHERE id = ?", user.id)!;
       const karma = Math.min(wantKarma, maxKarmaRedeemable(base, fresh.karma));
-      const total = base + fee - karma;
+      total = base + fee - karma;
+      // Online: hold the slot as pending_payment until Razorpay confirms. Demo: confirm immediately.
       const r = run(
-        `INSERT INTO bookings(code, user_id, venue_id, court_id, sport_id, date, start_hour, end_hour, base_amount, convenience_fee, karma_redeemed, total_amount, payment_method)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        `INSERT INTO bookings(code, user_id, venue_id, court_id, sport_id, date, start_hour, end_hour, base_amount, convenience_fee, karma_redeemed, total_amount, payment_method, status, payment_provider)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         code, user.id, venue.id, court.id, court.sport_id, date, start, end, base, fee, karma, total, payment,
+        online ? "pending_payment" : "confirmed", online ? "razorpay" : "demo",
       );
       if (karma > 0) addKarma(user.id, -karma, `Redeemed on booking ${code}`);
-      addKarma(user.id, KARMA_PER_BOOKING, `Venue booking ${code}`);
+      if (!online) addKarma(user.id, KARMA_PER_BOOKING, `Venue booking ${code}`);
       return Number(r.lastInsertRowid);
     });
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Booking failed." };
   }
-  revalidatePath(`/venues/${venue.slug}`);
-  redirect(`/bookings/${bookingId}?new=1`);
+  if (!online) {
+    revalidatePath(`/venues/${venue.slug}`);
+    redirect(`/bookings/${bookingId}?new=1`);
+  }
+  // No revalidatePath here: it would re-render /book, which now sees the held slot and would unmount the checkout.
+  return startRazorpayCheckout(bookingId, user.id);
+}
+
+/** Create (or reuse) the Razorpay order for a pending booking and hand the client what Checkout needs. */
+async function startRazorpayCheckout(bookingId: number, userId: number): Promise<ActionState> {
+  const b = getBooking(bookingId);
+  if (!b || b.user_id !== userId) return { error: "Booking not found." };
+  if (b.status === "confirmed") redirect(`/bookings/${b.id}?new=1`);
+  if (b.status !== "pending_payment") return { error: `This booking is ${b.status}. Please pick your slot again.` };
+  let orderId = b.razorpay_order_id;
+  if (!orderId) {
+    try {
+      const order = await createOrder(b.total_amount, b.code, { booking_id: String(b.id), venue: b.venue_name, user_id: String(userId) });
+      orderId = order.id;
+      run("UPDATE bookings SET razorpay_order_id = ? WHERE id = ?", orderId, b.id);
+    } catch (e) {
+      // Could not reach the gateway: release the slot so the user can try again.
+      run("UPDATE bookings SET status = 'failed' WHERE id = ? AND status = 'pending_payment'", b.id);
+      if (b.karma_redeemed > 0) addKarma(userId, b.karma_redeemed, `Karma returned: payment could not start for ${b.code}`);
+      return { error: e instanceof Error ? e.message : "Could not start payment. Please try again." };
+    }
+  }
+  const u = get<{ name: string | null; phone: string; email: string | null }>("SELECT name, phone, email FROM users WHERE id = ?", userId)!;
+  return {
+    ok: true,
+    checkout: {
+      keyId: razorpayKeyId()!, orderId, amount: Math.round(b.total_amount * 100), currency: "INR", bookingId: b.id, code: b.code,
+      name: u.name ?? "", phone: u.phone, email: u.email ?? "", description: `${b.venue_name} · ${b.court_name} · ${b.date}`,
+    },
+  };
+}
+
+/** Re-open Checkout for a pending booking whose payment was dismissed or interrupted. */
+export async function retryPayment(_: ActionState, fd: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  expireStaleHolds();
+  return startRazorpayCheckout(num(fd, "booking_id"), user.id);
 }
 
 export type CancelPreview = { allowed: boolean; reason?: string; refund: number; karmaBack: number };
@@ -146,11 +192,11 @@ export async function cancelBooking(fd: FormData) {
   const p = await previewCancel(id, user.id);
   if (!p.allowed) redirect(`/bookings/${id}?error=${encodeURIComponent(p.reason ?? "Cannot cancel")}`);
   const b = getBooking(id)!;
-  transaction(() => {
-    run("UPDATE bookings SET status = 'cancelled', refund_amount = ?, cancelled_at = datetime('now') WHERE id = ?", p.refund, id);
-    if (p.karmaBack > 0) addKarma(user.id, p.karmaBack, `Karma returned for cancelled booking ${b.code}`);
-    addKarma(user.id, -KARMA_PER_BOOKING, `Booking ${b.code} cancelled`);
-  });
+  try {
+    await cancelWithRefund(b, p.refund, "customer_cancellation", p.karmaBack, true);
+  } catch (e) {
+    redirect(`/bookings/${id}?error=${encodeURIComponent(e instanceof Error ? e.message : "Refund failed, booking not cancelled.")}`);
+  }
   revalidatePath("/profile");
   redirect(`/bookings/${id}?cancelled=1`);
 }
@@ -366,11 +412,12 @@ export async function partnerCancelBooking(fd: FormData) {
   requireOwner(user.id, venueId);
   const b = getBooking(id);
   if (!b || b.venue_id !== venueId || b.status !== "confirmed") return;
-  // Venue-initiated cancellations refund everything paid.
-  transaction(() => {
-    run("UPDATE bookings SET status = 'cancelled', refund_amount = ?, cancelled_at = datetime('now') WHERE id = ?", b.total_amount, id);
-    if (b.karma_redeemed > 0) addKarma(b.user_id, b.karma_redeemed, `Karma returned for booking ${b.code} (cancelled by venue)`);
-  });
+  // Venue-initiated cancellations refund everything paid, including the convenience fee.
+  try {
+    await cancelWithRefund(b, b.total_amount, "venue_cancellation", b.karma_redeemed, false);
+  } catch (e) {
+    redirect(`/partner/venues/${venueId}?date=${b.date}&error=${encodeURIComponent(e instanceof Error ? e.message : "Refund failed")}`);
+  }
   revalidatePath(`/partner/venues/${venueId}`);
   redirect(`/partner/venues/${venueId}?date=${b.date}`);
 }

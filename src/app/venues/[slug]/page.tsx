@@ -8,6 +8,7 @@ import { addDays, fmtDate, fmtHour, fmtINR, isValidISODate, todayISO } from "@/l
 import { addReview } from "@/lib/actions";
 import { Stars } from "@/components/ui";
 import SlotPicker from "@/components/SlotPicker";
+import { expireStaleHolds } from "@/lib/payments";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const v = getVenue((await params).slug);
@@ -23,6 +24,7 @@ export default async function VenuePage({ params, searchParams }: { params: Prom
   const today = todayISO();
   const date = sp.date && isValidISODate(sp.date) && sp.date >= today && sp.date <= addDays(today, 30) ? sp.date : today;
   const sport = v.sports.find((s) => s.slug === sp.sport) ?? v.sports[0];
+  expireStaleHolds();
   const courts = courtsForVenue(v.id, sport?.id).map((c) => ({ id: c.id, name: c.name, slots: slotsForCourt(c.id, date, v.open_hour, v.close_hour) }));
   const amenities: string[] = JSON.parse(v.amenities);
   const reviews = reviewsForVenue(v.id);

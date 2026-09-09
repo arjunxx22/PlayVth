@@ -8,6 +8,9 @@ import { priceFor, slotsForCourt } from "@/lib/slots";
 import { fmtDate, fmtHour, fmtINR, isValidISODate } from "@/lib/time";
 import { convenienceFee, maxKarmaRedeemable } from "@/lib/karma";
 import CheckoutForm from "@/components/CheckoutForm";
+import { isRazorpayEnabled } from "@/lib/razorpay";
+import { expireStaleHolds } from "@/lib/payments";
+import RetryPaymentButton from "@/components/RetryPaymentButton";
 
 export const metadata: Metadata = { title: "Checkout" };
 
@@ -24,8 +27,15 @@ export default async function BookPage({ searchParams }: { searchParams: Promise
   const self = `/book?court=${courtId}&date=${date}&hours=${hours.join(",")}&return_to=${encodeURIComponent(sp.return_to ?? "")}`;
   if (!user) redirect(`/login?next=${encodeURIComponent(self)}`);
 
+  expireStaleHolds();
   const slots = slotsForCourt(court.id, date, venue.open_hour, venue.close_hour);
   const unavailable = hours.filter((h) => slots.find((s) => s.hour === h)?.status !== "available");
+  // If the user already holds these exact slots with an unpaid booking, let them finish paying instead of saying "taken".
+  const ownHold = unavailable.length
+    ? get<{ id: number; code: string }>(
+      "SELECT id, code FROM bookings WHERE user_id = ? AND court_id = ? AND date = ? AND start_hour = ? AND end_hour = ? AND status = 'pending_payment' ORDER BY id DESC LIMIT 1",
+      user.id, court.id, date, hours[0], hours[hours.length - 1] + 1)
+    : undefined;
   const base = hours.reduce((s, h) => s + priceFor(court.id, date, h), 0);
   const fee = convenienceFee(base);
   const maxKarma = maxKarmaRedeemable(base, user.karma);
@@ -45,10 +55,16 @@ export default async function BookPage({ searchParams }: { searchParams: Promise
               <div><dt className="label">Time</dt><dd className="font-semibold">{fmtHour(hours[0])} – {fmtHour(hours[hours.length - 1] + 1)} ({hours.length} hr)</dd></div>
             </dl>
           </div>
-          {unavailable.length > 0 ? (
+          {ownHold ? (
+            <div className="card border-amber-200 bg-amber-50 p-5">
+              <h3 className="font-bold text-amber-900">You already hold this slot (booking {ownHold.code})</h3>
+              <p className="mt-1 text-sm text-amber-800">Complete the payment to confirm it.</p>
+              <div className="mt-3"><RetryPaymentButton bookingId={ownHold.id} /></div>
+            </div>
+          ) : unavailable.length > 0 ? (
             <div className="card border-rose-200 bg-rose-50 p-5 text-rose-800">Some of your selected slots were just taken. <Link className="font-semibold underline" href={sp.return_to || `/venues/${venue.slug}`}>Pick again</Link>.</div>
           ) : (
-            <CheckoutForm courtId={court.id} date={date} hours={hours} base={base} fee={fee} maxKarma={maxKarma} userKarma={user.karma} returnTo={sp.return_to ?? ""} />
+            <CheckoutForm courtId={court.id} date={date} hours={hours} base={base} fee={fee} maxKarma={maxKarma} userKarma={user.karma} returnTo={sp.return_to ?? ""} online={isRazorpayEnabled()} />
           )}
         </div>
         <aside className="card p-5 text-sm h-fit">

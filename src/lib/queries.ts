@@ -23,6 +23,8 @@ export type Booking = {
   court_id: number; court_name: string; sport_id: number; sport_name: string; sport_icon: string; date: string;
   start_hour: number; end_hour: number; base_amount: number; convenience_fee: number; karma_redeemed: number;
   total_amount: number; payment_method: string; status: string; refund_amount: number | null; created_at: string;
+  payment_provider: string; razorpay_order_id: string | null; razorpay_payment_id: string | null; razorpay_refund_id: string | null;
+  refund_status: string | null; paid_at: string | null;
   user_name?: string | null; user_phone?: string;
 };
 
@@ -100,6 +102,7 @@ const BOOKING_SELECT = `SELECT b.*, v.name AS venue_name, v.slug AS venue_slug, 
 export const bookingsForUser = (userId: number) => all<Booking>(`${BOOKING_SELECT} WHERE b.user_id = ? ORDER BY b.date DESC, b.start_hour DESC`, userId);
 export const getBooking = (id: number) => get<Booking>(`${BOOKING_SELECT} WHERE b.id = ?`, id);
 export const getBookingByCode = (code: string) => get<Booking>(`${BOOKING_SELECT} WHERE b.code = ?`, code);
+export const getBookingByOrder = (orderId: string) => get<Booking>(`${BOOKING_SELECT} WHERE b.razorpay_order_id = ?`, orderId);
 export const bookingsForVenueDate = (venueId: number, date: string) =>
   all<Booking>(`${BOOKING_SELECT} WHERE b.venue_id = ? AND b.date = ? ORDER BY b.start_hour, ct.id`, venueId, date);
 

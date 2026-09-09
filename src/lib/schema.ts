@@ -1,3 +1,13 @@
+// Columns added after the first release; applied with ALTER TABLE when missing (SQLite has no ADD COLUMN IF NOT EXISTS).
+export const MIGRATIONS: { table: string; column: string; ddl: string }[] = [
+  { table: "bookings", column: "payment_provider", ddl: "ALTER TABLE bookings ADD COLUMN payment_provider TEXT NOT NULL DEFAULT 'demo'" },
+  { table: "bookings", column: "razorpay_order_id", ddl: "ALTER TABLE bookings ADD COLUMN razorpay_order_id TEXT" },
+  { table: "bookings", column: "razorpay_payment_id", ddl: "ALTER TABLE bookings ADD COLUMN razorpay_payment_id TEXT" },
+  { table: "bookings", column: "razorpay_refund_id", ddl: "ALTER TABLE bookings ADD COLUMN razorpay_refund_id TEXT" },
+  { table: "bookings", column: "refund_status", ddl: "ALTER TABLE bookings ADD COLUMN refund_status TEXT" },
+  { table: "bookings", column: "paid_at", ddl: "ALTER TABLE bookings ADD COLUMN paid_at TEXT" },
+];
+
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS cities (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -95,12 +105,26 @@ CREATE TABLE IF NOT EXISTS bookings (
   karma_redeemed INTEGER NOT NULL DEFAULT 0,
   total_amount INTEGER NOT NULL,
   payment_method TEXT NOT NULL DEFAULT 'upi',
-  status TEXT NOT NULL DEFAULT 'confirmed', -- confirmed | cancelled
+  status TEXT NOT NULL DEFAULT 'confirmed', -- pending_payment | confirmed | cancelled | failed | expired
   refund_amount INTEGER,
   cancelled_at TEXT,
+  payment_provider TEXT NOT NULL DEFAULT 'demo', -- demo | razorpay
+  razorpay_order_id TEXT,
+  razorpay_payment_id TEXT,
+  razorpay_refund_id TEXT,
+  refund_status TEXT,                       -- pending | processed | failed
+  paid_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_bookings_court_date ON bookings(court_id, date);
+CREATE INDEX IF NOT EXISTS idx_bookings_rzp_order ON bookings(razorpay_order_id);
+CREATE TABLE IF NOT EXISTS payment_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id TEXT NOT NULL UNIQUE,            -- Razorpay x-razorpay-event-id, for idempotency
+  event_type TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 CREATE INDEX IF NOT EXISTS idx_bookings_user ON bookings(user_id);
 CREATE TABLE IF NOT EXISTS games (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

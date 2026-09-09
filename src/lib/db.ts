@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import fs from "node:fs";
-import { SCHEMA_SQL } from "./schema";
+import { MIGRATIONS, SCHEMA_SQL } from "./schema";
 import { seed } from "./seed";
 
 const DB_DIR = path.join(process.cwd(), "data");
@@ -16,6 +16,10 @@ function open(): DatabaseSync {
   const db = new DatabaseSync(DB_PATH);
   db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
   db.exec(SCHEMA_SQL);
+  for (const m of MIGRATIONS) {
+    const cols = db.prepare(`PRAGMA table_info(${m.table})`).all() as { name: string }[];
+    if (!cols.some((c) => c.name === m.column)) db.exec(m.ddl);
+  }
   const row = db.prepare("SELECT COUNT(*) AS n FROM cities").get() as { n: number };
   if (row.n === 0) seed(db);
   return db;
