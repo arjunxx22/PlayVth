@@ -25,6 +25,20 @@ The SQLite database is created and seeded automatically at `data/playvth.db` on 
 
 The fixed demo OTP is used until `SMS_API_KEY` is set; then OTPs are random and need an SMS provider wired into `issueOtp()` in `src/lib/auth.ts`. Override the demo code with `PLAYVTH_DEMO_OTP`.
 
+### Deploy to Railway (about 5 minutes)
+
+The repo ships a production `Dockerfile` and `railway.json`, so Railway needs no build settings.
+
+1. Go to https://railway.com/new → **Deploy from GitHub repo** → pick `arjunxx22/PlayVth` and the branch you want (Railway asks to install its GitHub app the first time).
+2. Open the new service → **Settings → Volumes → Add volume**, mount path **`/data`**. This is where the SQLite database lives, so bookings survive redeploys.
+3. **Variables**: nothing is required for a demo deploy. For real payments add `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` (see `.env.example`).
+4. **Settings → Networking → Generate domain**. Railway gives you `https://<name>.up.railway.app`; open it. The first request seeds the demo data.
+5. Health check is `/api/health`; deploy logs show `Ready` when it's up. Log in with `9000000001` / OTP `123456`.
+
+Every push to the connected branch redeploys automatically. Set the same domain as `PLAYVTH_APP_URL` in GitHub variables so the mobile shells point at it.
+
+The same Dockerfile runs on Fly.io (`fly launch`, add a volume at `/data`) or Render (Docker service + disk at `/data`).
+
 ### Payments (Razorpay)
 
 Copy `.env.example` to `.env.local` and set `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET`. Without keys the app runs in demo mode and simulates payment.

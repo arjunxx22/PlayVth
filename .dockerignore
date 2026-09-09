@@ -1,0 +1,11 @@
+node_modules
+.next
+data
+android
+ios
+store
+assets
+docs
+.git
+.github
+*.md

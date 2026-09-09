@@ -24,9 +24,9 @@ Timeline: 1 day of setup on your side, then Google review usually takes 1 to 3 d
 
 The mobile apps load this URL, so it must be public and on HTTPS.
 
-1. Pick a host with a persistent disk (the app uses SQLite): **Railway**, **Fly.io** or **Render** all work. On Vercel you'd first need to swap SQLite for Turso or Postgres.
-2. Deploy from the branch. Build command `npm run build`, start command `npm run start`, Node 22.
-3. Mount a volume and set `PLAYVTH_DB_PATH=/data/playvth.db` (or the mount path you chose).
+1. Pick a host with a persistent disk (the app uses SQLite): **Railway** is the quickest and the repo has a ready `Dockerfile` + `railway.json` (see README → Deploy to Railway). Fly.io and Render also work. On Vercel you'd first need to swap SQLite for Turso or Postgres.
+2. Deploy from the branch (Railway: Deploy from GitHub repo).
+3. Mount a volume at `/data`; the image already sets `PLAYVTH_DB_PATH=/data/playvth.db`.
 4. Set the Razorpay variables from `.env.example` and, when you have an SMS provider, `SMS_API_KEY`. Until then the OTP is the fixed demo code.
 5. Point your domain (for example `app.playvth.com`) at the host and confirm `https://app.playvth.com/privacy` opens. Both stores require this URL.
 6. In the Razorpay dashboard add the webhook `https://app.playvth.com/api/payments/webhook`.
