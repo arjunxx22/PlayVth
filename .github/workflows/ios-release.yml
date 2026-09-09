@@ -1,0 +1,89 @@
+name: iOS release (TestFlight)
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+env:
+  PLAYVTH_APP_URL: ${{ vars.PLAYVTH_APP_URL || 'https://app.playvth.com' }}
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Sync Capacitor and install pods
+        run: |
+          npx cap sync ios
+          cd ios/App && pod install
+
+      - name: Derive version
+        id: ver
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then echo "name=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT; else echo "name=1.0.${GITHUB_RUN_NUMBER}" >> $GITHUB_OUTPUT; fi
+          echo "build=${GITHUB_RUN_NUMBER}" >> $GITHUB_OUTPUT
+
+      - name: Import signing certificate and provisioning profile
+        env:
+          CERT_P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          KEYCHAIN=$RUNNER_TEMP/build.keychain-db
+          security create-keychain -p ci $KEYCHAIN
+          security set-keychain-settings -lut 21600 $KEYCHAIN
+          security unlock-keychain -p ci $KEYCHAIN
+          echo "$CERT_P12_BASE64" | base64 -d > $RUNNER_TEMP/dist.p12
+          security import $RUNNER_TEMP/dist.p12 -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN
+          security set-key-partition-list -S apple-tool:,apple: -k ci $KEYCHAIN
+          security list-keychain -d user -s $KEYCHAIN
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$PROFILE_BASE64" | base64 -d > ~/Library/MobileDevice/Provisioning\ Profiles/playvth.mobileprovision
+
+      - name: Set version and build number
+        working-directory: ios/App
+        run: |
+          xcrun agvtool new-marketing-version ${{ steps.ver.outputs.name }}
+          xcrun agvtool new-version -all ${{ steps.ver.outputs.build }}
+
+      - name: Archive
+        working-directory: ios/App
+        run: |
+          xcodebuild -workspace App.xcworkspace -scheme App -configuration Release -sdk iphoneos \
+            -archivePath $RUNNER_TEMP/App.xcarchive archive \
+            DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }} \
+            PROVISIONING_PROFILE_SPECIFIER="${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}" \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Apple Distribution"
+
+      - name: Export IPA
+        run: |
+          cat > $RUNNER_TEMP/ExportOptions.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>${{ secrets.APPLE_TEAM_ID }}</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key><dict><key>com.playvth.app</key><string>${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}</string></dict>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath $RUNNER_TEMP/App.xcarchive -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist -exportPath $RUNNER_TEMP/export
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PlayVth-${{ steps.ver.outputs.name }}.ipa
+          path: ${{ runner.temp }}/export/*.ipa
+
+      - name: Upload to TestFlight
+        if: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 != '' }}
+        env:
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          mkdir -p ~/private_keys
+          echo "${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}" | base64 -d > ~/private_keys/AuthKey_$KEY_ID.p8
+          xcrun altool --upload-app -f $RUNNER_TEMP/export/*.ipa -t ios --apiKey $KEY_ID --apiIssuer $ISSUER_ID

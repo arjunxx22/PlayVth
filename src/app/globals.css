@@ -12,6 +12,8 @@
 }
 
 body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
   background: #f8fafc;
   color: var(--color-ink);
   font-family: var(--font-sans);

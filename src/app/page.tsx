@@ -3,7 +3,8 @@ import { getCitySlug } from "@/lib/auth";
 import { cityBySlug, listGames, listSports, listVenues } from "@/lib/queries";
 import { GameCardView, VenueCardView } from "@/components/ui";
 
-export default async function Home() {
+export default async function Home({ searchParams }: { searchParams: Promise<{ deleted?: string }> }) {
+  const { deleted } = await searchParams;
   const citySlug = await getCitySlug();
   const city = cityBySlug(citySlug);
   const sports = listSports();
@@ -11,6 +12,7 @@ export default async function Home() {
   const games = listGames({ citySlug }).slice(0, 4);
   return (
     <>
+      {deleted && <div className="container-x pt-4"><div className="rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700">Your account has been deleted. We&apos;re sorry to see you go.</div></div>}
       <section className="bg-ink text-white">
         <div className="container-x grid gap-8 py-14 lg:grid-cols-2 lg:items-center">
           <div>

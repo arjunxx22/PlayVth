@@ -421,3 +421,25 @@ export async function partnerCancelBooking(fd: FormData) {
   revalidatePath(`/partner/venues/${venueId}`);
   redirect(`/partner/venues/${venueId}?date=${b.date}`);
 }
+
+// ---------- Account deletion (required by App Store 5.1.1(v) and Play "account deletion" policy) ----------
+export async function deleteAccount(fd: FormData) {
+  const user = await requireUser();
+  if (str(fd, "confirm") !== "DELETE") redirect("/profile?error=Type+DELETE+to+confirm");
+  const upcoming = get("SELECT 1 FROM bookings WHERE user_id = ? AND status = 'confirmed' AND date >= date('now') LIMIT 1", user.id);
+  if (upcoming) redirect("/profile?error=Cancel+your+upcoming+bookings+before+deleting+your+account");
+  transaction(() => {
+    // Keep financial records (anonymised) for statutory retention; remove everything personal.
+    run("UPDATE users SET phone = ?, name = 'Deleted user', email = NULL, karma = 0, referral_code = NULL, role = 'player', city_id = NULL WHERE id = ?", `deleted-${user.id}-${Date.now()}`, user.id);
+    run("DELETE FROM user_skills WHERE user_id = ?", user.id);
+    run("DELETE FROM sessions WHERE user_id = ?", user.id);
+    run("DELETE FROM karma_ledger WHERE user_id = ?", user.id);
+    run("DELETE FROM enquiries WHERE user_id = ?", user.id);
+    run("UPDATE games SET status = 'cancelled' WHERE host_user_id = ? AND date >= date('now')", user.id);
+    run("DELETE FROM game_players WHERE user_id = ?", user.id);
+    run("DELETE FROM reviews WHERE user_id = ?", user.id);
+    run("UPDATE venues SET owner_user_id = NULL WHERE owner_user_id = ?", user.id);
+  });
+  await logoutCurrent();
+  redirect("/?deleted=1");
+}

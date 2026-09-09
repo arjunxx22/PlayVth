@@ -1,0 +1,67 @@
+name: Android release (AAB)
+
+on:
+  workflow_dispatch:
+    inputs:
+      track:
+        description: "Play track to upload to (leave empty to only build)"
+        required: false
+        default: "internal"
+  push:
+    tags: ["v*"]
+
+env:
+  PLAYVTH_APP_URL: ${{ vars.PLAYVTH_APP_URL || 'https://app.playvth.com' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: android-actions/setup-android@v3
+
+      - run: npm ci
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Derive version from tag or run number
+        id: ver
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then echo "name=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT; else echo "name=1.0.${GITHUB_RUN_NUMBER}" >> $GITHUB_OUTPUT; fi
+          echo "code=${GITHUB_RUN_NUMBER}" >> $GITHUB_OUTPUT
+
+      - name: Restore upload keystore from secret
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > $RUNNER_TEMP/upload.jks
+
+      - name: Build signed bundle
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && format('{0}/upload.jks', runner.temp) || '' }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          VERSION_CODE: ${{ steps.ver.outputs.code }}
+          VERSION_NAME: ${{ steps.ver.outputs.name }}
+        run: |
+          chmod +x gradlew
+          ./gradlew bundleRelease --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: playvth-${{ steps.ver.outputs.name }}.aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+
+      - name: Upload to Google Play
+        if: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' && (github.event.inputs.track != '' || startsWith(github.ref, 'refs/tags/v')) }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.playvth.app
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+          track: ${{ github.event.inputs.track || 'internal' }}
+          status: completed

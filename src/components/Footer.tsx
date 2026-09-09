@@ -12,7 +12,7 @@ export default function Footer() {
         <div><div className="font-semibold mb-2">Business</div><ul className="space-y-1 text-slate-600">
           <li><Link href="/partner">List your venue</Link></li><li><Link href="/partner">Partner dashboard</Link></li></ul></div>
         <div><div className="font-semibold mb-2">Policies</div><ul className="space-y-1 text-slate-600">
-          <li><Link href="/policies">Cancellation &amp; refunds</Link></li><li><Link href="/policies#karma">Karma points</Link></li></ul></div>
+          <li><Link href="/policies">Cancellation &amp; refunds</Link></li><li><Link href="/policies#karma">Karma points</Link></li><li><Link href="/privacy">Privacy policy</Link></li><li><Link href="/terms">Terms of service</Link></li></ul></div>
       </div>
       <div className="border-t border-slate-100 py-4 text-center text-xs text-slate-400">© {new Date().getFullYear()} PlayVth</div>
     </footer>

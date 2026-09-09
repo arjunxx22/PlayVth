@@ -40,6 +40,19 @@ How the online flow works:
 
 Use Razorpay test keys (`rzp_test_…`) and test cards / UPI from the Razorpay docs to try it end to end. For local webhooks, expose the dev server with a tunnel such as ngrok.
 
+### Mobile apps (App Store and Google Play)
+
+The iOS and Android apps are Capacitor shells that load the hosted web app. See **[docs/STORE_LAUNCH.md](docs/STORE_LAUNCH.md)** for the complete launch checklist and **`store/`** for listing copy, screenshots and graphics.
+
+```bash
+npx cap sync                      # after changing capacitor.config.ts or plugins
+npx cap open ios                  # Xcode (macOS)
+npx cap open android              # Android Studio
+npx @capacitor/assets generate    # regenerate icons/splash from assets/
+```
+
+Set `PLAYVTH_APP_URL` to your production URL before syncing. Release builds run in GitHub Actions (`android-release.yml`, `ios-release.yml`) from secrets described in the launch guide.
+
 ### Production build
 
 ```bash

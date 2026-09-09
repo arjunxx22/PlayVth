@@ -4,11 +4,13 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { bookingsForUser, gamesForUser, karmaLedger, userSkills } from "@/lib/queries";
 import { fmtDate, fmtINR, fmtRange, todayISO } from "@/lib/time";
-import { PageTitle, SKILL_LABEL } from "@/components/ui";
+import { Alert, PageTitle, SKILL_LABEL } from "@/components/ui";
+import { deleteAccount } from "@/lib/actions";
 
 export const metadata: Metadata = { title: "My profile" };
 
-export default async function ProfilePage() {
+export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const { error } = await searchParams;
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/profile");
   const bookings = bookingsForUser(user.id);
@@ -23,6 +25,7 @@ export default async function ProfilePage() {
     <div className="container-x py-8">
       <PageTitle title={user.name ?? "Complete your profile"} sub={`+91 ${user.phone}${user.email ? ` · ${user.email}` : ""}`}
         action={<div className="flex gap-2"><Link href="/profile/edit" className="btn-secondary">Edit profile</Link>{user.role === "partner" && <Link href="/partner" className="btn-primary">Partner dashboard</Link>}</div>} />
+      {error && <div className="mb-4"><Alert kind="error">{error}</Alert></div>}
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <section className="card p-5">
@@ -66,6 +69,14 @@ export default async function ProfilePage() {
             <h2 className="font-bold">Skill levels</h2>
             {skills.length === 0 ? <p className="mt-2 text-sm text-slate-500">Set your levels so hosts can match you. <Link href="/profile/edit" className="font-semibold text-brand-700">Add sports</Link>.</p>
               : <ul className="mt-2 space-y-1 text-sm">{skills.map((s) => <li key={s.sport_id} className="flex justify-between"><span>{s.icon} {s.sport_name}</span><span className="chip bg-slate-100">{SKILL_LABEL[s.level]}</span></li>)}</ul>}
+          </section>
+          <section className="card p-5">
+            <h2 className="font-bold">Delete account</h2>
+            <p className="mt-1 text-xs text-slate-500">Removes your name, phone number, email, skills and Karma permanently. Booking records are anonymised and kept only as required by law. Cancel upcoming bookings first.</p>
+            <form action={deleteAccount} className="mt-3 flex gap-2">
+              <input name="confirm" className="input py-1.5" placeholder='Type "DELETE"' required />
+              <button className="btn-danger py-1.5">Delete</button>
+            </form>
           </section>
         </aside>
       </div>

@@ -151,6 +151,8 @@ For scale, the same schema ports 1:1 to PostgreSQL (add PostGIS for distance sea
 - [x] Partner: landing page, list-your-venue wizard (courts + prices per sport), dashboard with today's / month's revenue, per-venue scheduler grid, block/unblock slots, venue-side cancel & refund, pricing editor (weekday / peak / weekend)
 - [x] Phone + OTP login (demo OTP until an SMS provider is configured)
 - [x] JSON API for mobile
+- [x] Native iOS and Android shells (Capacitor) with icons, splash, CI release workflows, store listing kit and launch checklist (`docs/STORE_LAUNCH.md`)
+- [x] Store compliance: privacy policy, terms, in-app account deletion, web manifest
 
 ### Phase 2 (next 2–4 weeks)
 
