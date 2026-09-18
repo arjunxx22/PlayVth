@@ -154,18 +154,19 @@ For scale, the same schema ports 1:1 to PostgreSQL (add PostGIS for distance sea
 - [x] JSON API for mobile
 - [x] Native iOS and Android shells (Capacitor) with icons, splash, CI release workflows, store listing kit and launch checklist (`docs/STORE_LAUNCH.md`)
 - [x] Store compliance: privacy policy, terms, in-app account deletion, web manifest
+- [x] Venue photos with cover and lightbox gallery; walk-in and phone bookings on the partner scheduler; WhatsApp alerts (Meta Cloud API) with per-venue number and in-app alert log
 
 ### Phase 2 (next 2–4 weeks)
 
 - Payment extras: coupons, partial refunds review queue, settlement/payout reports for partners
 - SMS OTP provider; Google / Apple login
-- Venue photos upload; map + distance ("near me") with PostGIS
+- Map + distance ("near me") with PostGIS
 - Reschedule booking; coupons; city-level Karma caps; referral crediting
-- Push / WhatsApp notifications and reminders
+- Push notifications and slot reminders (WhatsApp alerts are done)
 - Game chat; co-host; player ratings after games; user rating graph and badges
 - Groups
 - Admin panel: venue approval, moderation, refunds, GameTime events
-- Partner: memberships, walk-in (offline) bookings, payouts/statement export, multi-user staff logins
+- Partner: memberships, payouts/statement export, multi-user staff logins, no-show tracking
 
 ### Phase 3
 

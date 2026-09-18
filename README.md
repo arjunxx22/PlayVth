@@ -39,6 +39,12 @@ Every push to the connected branch redeploys automatically. Set the same domain 
 
 The same Dockerfile runs on Fly.io (`fly launch`, add a volume at `/data`) or Render (Docker service + disk at `/data`).
 
+### Venue photos, offline bookings and WhatsApp alerts
+
+- **Photos**: partners upload up to 8 photos per venue (JPG/PNG/WebP/HEIC, resized to WebP with thumbnails). Stored under `PLAYVTH_UPLOAD_DIR` (defaults to `uploads/` next to the SQLite file, so `/data/uploads` on Railway) and served from `/api/uploads/<name>`. The cover photo appears on venue cards and the venue hero; a lightbox gallery shows the rest.
+- **Walk-in and phone bookings**: partners add offline bookings on the same scheduler grid (court, start, duration, customer name, optional phone, custom amount, paid now). They block the online slots so nobody double-books. A phone number links the booking to that customer's account.
+- **WhatsApp alerts**: venues get a message for every new booking and cancellation; customers get confirmations and venue cancellations. Configure the Meta WhatsApp Cloud API per **[docs/WHATSAPP_SETUP.md](docs/WHATSAPP_SETUP.md)**; until then messages are recorded in the venue's Alerts tab as `logged`.
+
 ### Payments
 
 **Default: pay at the venue.** Bookings confirm instantly, nothing is charged online and there is no convenience fee. The booking page tells the player what to pay at the counter, and the partner scheduler shows "Collect ₹X" with a **Mark paid** button (cash / UPI / card). Cancellation is free up to 2 hours before the slot.
@@ -84,7 +90,7 @@ npm run lint
 | `/play`, `/play/new`, `/play/[id]` | Game feed, host a game, request to join, host approval, leave/cancel |
 | `/coaching` | Coach directory with enquiries |
 | `/profile`, `/profile/edit` | Bookings, games, Karma ledger, referral code, skill levels |
-| `/partner`, `/partner/new`, `/partner/venues/[id]` | Partner landing, list-your-venue wizard, dashboard with revenue, day scheduler, block slots, venue-side cancel, pricing editor |
+| `/partner`, `/partner/new`, `/partner/venues/[id]` | Partner landing, list-your-venue wizard, dashboard with revenue, day scheduler with walk-in and phone bookings, block slots, mark paid, venue-side cancel, pricing editor, photo gallery management, WhatsApp alert settings and log |
 | `/api/*` | JSON endpoints (sports, venues, slots, games) for a mobile app; `/api/payments/verify` and `/api/payments/webhook` for Razorpay |
 
 ### Code map

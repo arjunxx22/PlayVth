@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { courtsForVenue, getVenue, reviewsForVenue } from "@/lib/queries";
+import { courtsForVenue, getVenue, photosForVenue, reviewsForVenue } from "@/lib/queries";
+import { photoUrl } from "@/lib/photo-url";
+import Gallery from "@/components/Gallery";
 import { slotsForCourt } from "@/lib/slots";
 import { addDays, fmtDate, fmtHour, fmtINR, isValidISODate, todayISO } from "@/lib/time";
 import { addReview } from "@/lib/actions";
@@ -30,13 +32,15 @@ export default async function VenuePage({ params, searchParams }: { params: Prom
   const courts = courtsForVenue(v.id, sport?.id).map((c) => ({ id: c.id, name: c.name, slots: slotsForCourt(c.id, date, v.open_hour, v.close_hour) }));
   const amenities: string[] = JSON.parse(v.amenities);
   const reviews = reviewsForVenue(v.id);
+  const photos = photosForVenue(v.id);
   const days = Array.from({ length: 7 }, (_, i) => addDays(today, i));
   const returnTo = `/venues/${v.slug}?sport=${sport?.slug ?? ""}&date=${date}`;
 
   return (
     <div>
-      <div className={`theme-${v.theme} text-white`}>
-        <div className="container-x py-10">
+      <div className={`theme-${v.theme} relative text-white bg-cover bg-center`} style={v.cover ? { backgroundImage: `url(${photoUrl(v.cover.file)})` } : undefined}>
+        {v.cover && <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/40 to-black/20" />}
+        <div className="container-x relative py-10">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <div className="flex flex-wrap gap-1">{v.sports.map((s) => <span key={s.id} className="chip bg-white/20">{s.icon} {s.name}</span>)}</div>
@@ -74,6 +78,7 @@ export default async function VenuePage({ params, searchParams }: { params: Prom
             <div className="mt-4"><SlotPicker courts={courts} date={date} returnTo={returnTo} /></div>
           </section>
 
+          {photos.length > 0 && <Reveal><section className="card p-5"><h2 className="text-xl font-extrabold">Photos</h2><div className="mt-3"><Gallery photos={photos} name={v.name} /></div></section></Reveal>}
           <Reveal><section className="card p-5">
             <h2 className="text-xl font-extrabold">About</h2>
             <p className="mt-2 text-slate-700">{v.description}</p>

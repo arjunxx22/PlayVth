@@ -8,9 +8,10 @@ export type Venue = {
   id: number; slug: string; name: string; city_id: number; city_name: string; area: string; address: string;
   lat: number | null; lng: number | null; description: string; amenities: string; open_hour: number; close_hour: number;
   rating: number; rating_count: number; free_cancel_hours: number; cancel_fee_pct: number; owner_user_id: number | null;
-  theme: string; is_active: number;
+  theme: string; is_active: number; alert_phone: string | null; cover_photo_id: number | null;
 };
-export type VenueCard = Venue & { sports: Sport[]; starting_price: number };
+export type VenuePhoto = { id: number; venue_id: number; file: string; thumb: string; width: number; height: number; sort: number };
+export type VenueCard = Venue & { sports: Sport[]; starting_price: number; cover: VenuePhoto | null };
 export type Court = { id: number; venue_id: number; sport_id: number; name: string; is_active: number };
 export type Game = {
   id: number; host_user_id: number; host_name: string | null; sport_id: number; sport_name: string; sport_icon: string;
@@ -24,8 +25,8 @@ export type Booking = {
   start_hour: number; end_hour: number; base_amount: number; convenience_fee: number; karma_redeemed: number;
   total_amount: number; payment_method: string; status: string; refund_amount: number | null; created_at: string;
   payment_provider: string; razorpay_order_id: string | null; razorpay_payment_id: string | null; razorpay_refund_id: string | null;
-  refund_status: string | null; paid_at: string | null;
-  user_name?: string | null; user_phone?: string;
+  refund_status: string | null; paid_at: string | null; source: string; guest_name: string | null; note: string | null;
+  user_name?: string | null; user_phone?: string; guest_phone_display?: string | null;
 };
 
 export const listCities = () => all<City>("SELECT * FROM cities ORDER BY id");
@@ -33,6 +34,11 @@ export const listSports = () => all<Sport>("SELECT * FROM sports ORDER BY id");
 export const cityBySlug = (slug: string) => get<City>("SELECT * FROM cities WHERE slug = ?", slug);
 export const sportBySlug = (slug: string) => get<Sport>("SELECT * FROM sports WHERE slug = ?", slug);
 
+export const photosForVenue = (venueId: number) => all<VenuePhoto>("SELECT * FROM venue_photos WHERE venue_id = ? ORDER BY sort, id", venueId);
+export function coverForVenue(v: Venue): VenuePhoto | null {
+  const byId = v.cover_photo_id ? get<VenuePhoto>("SELECT * FROM venue_photos WHERE id = ? AND venue_id = ?", v.cover_photo_id, v.id) : undefined;
+  return byId ?? get<VenuePhoto>("SELECT * FROM venue_photos WHERE venue_id = ? ORDER BY sort, id LIMIT 1", v.id) ?? null;
+}
 export function sportsForVenue(venueId: number): Sport[] {
   return all<Sport>("SELECT s.* FROM venue_sports vs JOIN sports s ON s.id = vs.sport_id WHERE vs.venue_id = ? ORDER BY s.id", venueId);
 }
@@ -47,7 +53,7 @@ export function listVenues(opts: { citySlug?: string; sportSlug?: string; q?: st
   if (opts.q) { where.push("(v.name LIKE ? OR v.area LIKE ?)"); params.push(`%${opts.q}%`, `%${opts.q}%`); }
   const order = opts.sort === "rating" ? "v.rating DESC" : "v.rating_count DESC";
   const rows = all<Venue>(`${VENUE_SELECT} WHERE ${where.join(" AND ")} ORDER BY ${order}`, ...params);
-  let cards = rows.map((v) => ({ ...v, sports: sportsForVenue(v.id), starting_price: startingPrice(v.id) }));
+  let cards = rows.map((v) => ({ ...v, sports: sportsForVenue(v.id), starting_price: startingPrice(v.id), cover: coverForVenue(v) }));
   if (opts.maxPrice) cards = cards.filter((c) => c.starting_price <= opts.maxPrice!);
   if (opts.sort === "price_asc") cards.sort((a, b) => a.starting_price - b.starting_price);
   if (opts.sort === "price_desc") cards.sort((a, b) => b.starting_price - a.starting_price);
@@ -56,11 +62,11 @@ export function listVenues(opts: { citySlug?: string; sportSlug?: string; q?: st
 
 export function getVenue(slug: string): VenueCard | undefined {
   const v = get<Venue>(`${VENUE_SELECT} WHERE v.slug = ?`, slug);
-  return v ? { ...v, sports: sportsForVenue(v.id), starting_price: startingPrice(v.id) } : undefined;
+  return v ? { ...v, sports: sportsForVenue(v.id), starting_price: startingPrice(v.id), cover: coverForVenue(v) } : undefined;
 }
 export function getVenueById(id: number): VenueCard | undefined {
   const v = get<Venue>(`${VENUE_SELECT} WHERE v.id = ?`, id);
-  return v ? { ...v, sports: sportsForVenue(v.id), starting_price: startingPrice(v.id) } : undefined;
+  return v ? { ...v, sports: sportsForVenue(v.id), starting_price: startingPrice(v.id), cover: coverForVenue(v) } : undefined;
 }
 export const courtsForVenue = (venueId: number, sportId?: number) =>
   sportId
@@ -97,7 +103,7 @@ export function gamePlayers(gameId: number) {
 }
 
 const BOOKING_SELECT = `SELECT b.*, v.name AS venue_name, v.slug AS venue_slug, v.area, ct.name AS court_name, s.name AS sport_name, s.icon AS sport_icon,
-  u.name AS user_name, u.phone AS user_phone
+  u.name AS user_name, u.phone AS user_phone, CASE WHEN u.phone LIKE 'walkin-%' THEN NULL ELSE u.phone END AS guest_phone_display
   FROM bookings b JOIN venues v ON v.id = b.venue_id JOIN courts ct ON ct.id = b.court_id JOIN sports s ON s.id = b.sport_id JOIN users u ON u.id = b.user_id`;
 export const bookingsForUser = (userId: number) => all<Booking>(`${BOOKING_SELECT} WHERE b.user_id = ? ORDER BY b.date DESC, b.start_hour DESC`, userId);
 export const getBooking = (id: number) => get<Booking>(`${BOOKING_SELECT} WHERE b.id = ?`, id);
@@ -119,7 +125,7 @@ export const userSkills = (userId: number) =>
     "SELECT us.sport_id, s.name AS sport_name, s.icon, us.level FROM user_skills us JOIN sports s ON s.id = us.sport_id WHERE us.user_id = ?", userId);
 
 export const venuesForOwner = (userId: number) =>
-  all<Venue>(`${VENUE_SELECT} WHERE v.owner_user_id = ? ORDER BY v.id`, userId).map((v) => ({ ...v, sports: sportsForVenue(v.id), starting_price: startingPrice(v.id) }));
+  all<Venue>(`${VENUE_SELECT} WHERE v.owner_user_id = ? ORDER BY v.id`, userId).map((v) => ({ ...v, sports: sportsForVenue(v.id), starting_price: startingPrice(v.id), cover: coverForVenue(v) }));
 
 export type Coach = { id: number; name: string; sport_id: number; sport_name: string; sport_icon: string; city_name: string; area: string; experience_years: number; price_per_session: number; rating: number; bio: string };
 export function listCoaches(opts: { citySlug?: string; sportSlug?: string } = {}) {
@@ -129,3 +135,7 @@ export function listCoaches(opts: { citySlug?: string; sportSlug?: string } = {}
   return all<Coach>(`SELECT co.*, s.name AS sport_name, s.icon AS sport_icon, c.name AS city_name FROM coaches co JOIN sports s ON s.id = co.sport_id JOIN cities c ON c.id = co.city_id WHERE ${where.join(" AND ")} ORDER BY co.rating DESC`, ...params);
 }
 export const getCoach = (id: number) => get<Coach>("SELECT co.*, s.name AS sport_name, s.icon AS sport_icon, c.name AS city_name FROM coaches co JOIN sports s ON s.id = co.sport_id JOIN cities c ON c.id = co.city_id WHERE co.id = ?", id);
+
+export type Notification = { id: number; channel: string; recipient: string; audience: string; event: string; body: string; status: string; provider_id: string | null; error: string | null; venue_id: number | null; booking_id: number | null; created_at: string };
+export const notificationsForVenue = (venueId: number, limit = 50) => all<Notification>("SELECT * FROM notifications WHERE venue_id = ? ORDER BY id DESC LIMIT ?", venueId, limit);
+export const ownerPhone = (venueId: number) => get<{ phone: string }>("SELECT u.phone FROM venues v JOIN users u ON u.id = v.owner_user_id WHERE v.id = ?", venueId)?.phone ?? null;

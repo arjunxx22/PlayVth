@@ -6,6 +6,11 @@ export const MIGRATIONS: { table: string; column: string; ddl: string }[] = [
   { table: "bookings", column: "razorpay_refund_id", ddl: "ALTER TABLE bookings ADD COLUMN razorpay_refund_id TEXT" },
   { table: "bookings", column: "refund_status", ddl: "ALTER TABLE bookings ADD COLUMN refund_status TEXT" },
   { table: "bookings", column: "paid_at", ddl: "ALTER TABLE bookings ADD COLUMN paid_at TEXT" },
+  { table: "bookings", column: "source", ddl: "ALTER TABLE bookings ADD COLUMN source TEXT NOT NULL DEFAULT 'online'" }, // online | walk_in | phone
+  { table: "bookings", column: "guest_name", ddl: "ALTER TABLE bookings ADD COLUMN guest_name TEXT" },
+  { table: "bookings", column: "note", ddl: "ALTER TABLE bookings ADD COLUMN note TEXT" },
+  { table: "venues", column: "alert_phone", ddl: "ALTER TABLE venues ADD COLUMN alert_phone TEXT" },
+  { table: "venues", column: "cover_photo_id", ddl: "ALTER TABLE venues ADD COLUMN cover_photo_id INTEGER" },
 ];
 
 export const SCHEMA_SQL = `
@@ -182,6 +187,31 @@ CREATE TABLE IF NOT EXISTS coaches (
   rating REAL NOT NULL DEFAULT 4.5,
   bio TEXT NOT NULL DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS venue_photos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  venue_id INTEGER NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
+  file TEXT NOT NULL,                       -- large image filename in the uploads dir
+  thumb TEXT NOT NULL,                      -- thumbnail filename
+  width INTEGER NOT NULL, height INTEGER NOT NULL,
+  sort INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_venue_photos_venue ON venue_photos(venue_id, sort);
+CREATE TABLE IF NOT EXISTS notifications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  channel TEXT NOT NULL,                    -- whatsapp
+  recipient TEXT NOT NULL,                  -- phone in E.164 without +
+  audience TEXT NOT NULL,                   -- venue | player
+  event TEXT NOT NULL,                      -- booking_confirmed | booking_cancelled | ...
+  body TEXT NOT NULL,                       -- human-readable message text
+  status TEXT NOT NULL,                     -- sent | failed | logged (no provider configured)
+  provider_id TEXT,
+  error TEXT,
+  venue_id INTEGER REFERENCES venues(id) ON DELETE SET NULL,
+  booking_id INTEGER REFERENCES bookings(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_venue ON notifications(venue_id, id);
 CREATE TABLE IF NOT EXISTS enquiries (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   coach_id INTEGER NOT NULL REFERENCES coaches(id),

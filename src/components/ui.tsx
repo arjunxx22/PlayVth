@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Game, VenueCard } from "@/lib/queries";
 import { fmtDate, fmtINR, fmtRange } from "@/lib/time";
 import { Hover } from "./motion/Reveal";
+import { photoUrl } from "@/lib/photo-url";
 
 export function Stars({ rating, count }: { rating: number; count?: number }) {
   return (
@@ -15,8 +16,9 @@ export function Stars({ rating, count }: { rating: number; count?: number }) {
 export function VenueCardView({ v }: { v: VenueCard }) {
   return (
     <Hover className="h-full"><Link href={`/venues/${v.slug}`} className="card card-shine flex h-full flex-col overflow-hidden hover:shadow-lg transition-shadow group">
-      <div className={`theme-${v.theme} relative h-36 flex items-end p-3 transition-transform duration-500 group-hover:scale-[1.03]`}>
-        <div className="flex flex-wrap gap-1">
+      <div className={`theme-${v.theme} relative h-40 flex items-end p-3 transition-transform duration-500 group-hover:scale-[1.03] bg-cover bg-center`} style={v.cover ? { backgroundImage: `url(${photoUrl(v.cover.thumb)})` } : undefined}>
+        {v.cover && <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />}
+        <div className="relative flex flex-wrap gap-1">
           {v.sports.slice(0, 4).map((s) => <span key={s.id} className="chip bg-white/90 text-ink">{s.icon} {s.name}</span>)}
           {v.sports.length > 4 && <span className="chip bg-white/70">+{v.sports.length - 4}</span>}
         </div>

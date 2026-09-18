@@ -18,8 +18,12 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      "android/**",
+      "ios/**",
     ],
   },
+  // Uploaded venue photos are served from the app's own volume; the Next image optimizer adds nothing here.
+  { rules: { "@next/next/no-img-element": "off" } },
 ];
 
 export default eslintConfig;

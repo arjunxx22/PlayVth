@@ -12,6 +12,14 @@ import { convenienceFee, KARMA_PER_BOOKING, KARMA_PER_GAME, maxKarmaRedeemable, 
 import { getBooking, getGame, getVenueById } from "./queries";
 import { addKarma, cancelWithRefund, expireStaleHolds } from "./payments";
 import { createOrder, razorpayKeyId } from "./razorpay";
+import { ownerPhone, photosForVenue } from "./queries";
+import { deletePhotoFiles, MAX_PHOTOS_PER_VENUE, savePhoto } from "./uploads";
+import { notifyBookingCancelled, notifyBookingConfirmed, toWaNumber } from "./notify";
+
+function alertTarget(venueId: number) {
+  const v = getVenueById(venueId)!;
+  return { name: v.name, alert_phone: v.alert_phone, owner_phone: ownerPhone(venueId) };
+}
 
 export type RazorpayCheckout = {
   keyId: string; orderId: string; amount: number; currency: string; bookingId: number; code: string;
@@ -127,6 +135,7 @@ export async function createBooking(_: ActionState, fd: FormData): Promise<Actio
     return { error: e instanceof Error ? e.message : "Booking failed." };
   }
   if (!online) {
+    notifyBookingConfirmed(getBooking(bookingId)!, alertTarget(venue.id));
     revalidatePath(`/venues/${venue.slug}`);
     redirect(`/bookings/${bookingId}?new=1`);
   }
@@ -198,6 +207,7 @@ export async function cancelBooking(fd: FormData) {
   } catch (e) {
     redirect(`/bookings/${id}?error=${encodeURIComponent(e instanceof Error ? e.message : "Refund failed, booking not cancelled.")}`);
   }
+  notifyBookingCancelled(getBooking(id)!, alertTarget(b.venue_id), "player");
   revalidatePath("/profile");
   redirect(`/bookings/${id}?cancelled=1`);
 }
@@ -419,6 +429,7 @@ export async function partnerCancelBooking(fd: FormData) {
   } catch (e) {
     redirect(`/partner/venues/${venueId}?date=${b.date}&error=${encodeURIComponent(e instanceof Error ? e.message : "Refund failed")}`);
   }
+  notifyBookingCancelled(getBooking(id)!, alertTarget(venueId), "venue");
   revalidatePath(`/partner/venues/${venueId}`);
   redirect(`/partner/venues/${venueId}?date=${b.date}`);
 }
@@ -433,6 +444,120 @@ export async function markPaidAtVenue(fd: FormData) {
   run("UPDATE bookings SET paid_at = CASE WHEN paid_at IS NULL THEN datetime('now') ELSE NULL END, payment_method = ? WHERE id = ?", str(fd, "method") || b.payment_method, id);
   revalidatePath(`/partner/venues/${venueId}`);
   redirect(`/partner/venues/${venueId}?date=${b.date}`);
+}
+
+// ---------- Offline (walk-in / phone) bookings ----------
+export async function addOfflineBooking(fd: FormData) {
+  const user = await requireUser();
+  const venueId = num(fd, "venue_id"), courtId = num(fd, "court_id");
+  const date = str(fd, "date"), start = num(fd, "start_hour"), duration = Math.min(4, Math.max(1, num(fd, "duration") || 1));
+  const venue = requireOwner(user.id, venueId);
+  const back = (err?: string) => redirect(`/partner/venues/${venueId}?date=${date}${err ? `&error=${encodeURIComponent(err)}` : ""}`);
+  const court = get<{ id: number; sport_id: number }>("SELECT id, sport_id FROM courts WHERE id = ? AND venue_id = ? AND is_active = 1", courtId, venueId);
+  if (!court) back("Court not found");
+  if (!isValidISODate(date)) back("Invalid date");
+  const end = start + duration;
+  if (start < venue.open_hour || end > venue.close_hour) back("Outside venue hours");
+  // Venue staff may add a booking for the hour currently in progress (a walk-in who just arrived).
+  if (minutesUntil(date, start + 1) <= 0) back("That slot has already ended");
+  const name = str(fd, "guest_name").slice(0, 80) || "Walk-in";
+  const phone = normalizePhone(str(fd, "guest_phone"));
+  const source = str(fd, "source") === "phone" ? "phone" : "walk_in";
+  const paidNow = str(fd, "paid") === "1";
+  const method = ["cash", "upi", "card"].includes(str(fd, "method")) ? str(fd, "method") : "cash";
+  const note = str(fd, "note").slice(0, 200) || null;
+  // Link to the customer's account if their number is known; otherwise use the venue's walk-in placeholder account.
+  let customerId: number;
+  if (phone) {
+    const existing = get<{ id: number }>("SELECT id FROM users WHERE phone = ?", phone);
+    customerId = existing?.id ?? Number(run("INSERT INTO users(phone, name, city_id, referral_code) VALUES (?, ?, ?, ?)", phone, name, venue.city_id, "PV" + phone.slice(-4) + randomBytes(2).toString("hex").toUpperCase()).lastInsertRowid);
+  } else {
+    const ph = `walkin-${venueId}`;
+    customerId = get<{ id: number }>("SELECT id FROM users WHERE phone = ?", ph)?.id ?? Number(run("INSERT INTO users(phone, name, city_id) VALUES (?, ?, ?)", ph, `${venue.name} walk-ins`, venue.city_id).lastInsertRowid);
+  }
+  const code = "PV" + randomBytes(3).toString("hex").toUpperCase();
+  let bookingId = 0;
+  try {
+    bookingId = transaction(() => {
+      const slots = slotsForCourt(court!.id, date, venue.open_hour, venue.close_hour);
+      for (let h = start; h < end; h++) {
+        const sl = slots.find((x) => x.hour === h);
+        if (!sl || (sl.status !== "available" && !(sl.status === "past" && h === start))) throw new Error(`${fmtHourLocal(h)} is not free on that court.`);
+      }
+      const listPrice = Array.from({ length: duration }, (_, i) => priceFor(court!.id, date, start + i)).reduce((a, b) => a + b, 0);
+      const amount = fd.get("amount") !== null && str(fd, "amount") !== "" ? Math.max(0, num(fd, "amount")) : listPrice;
+      const r = run(
+        `INSERT INTO bookings(code, user_id, venue_id, court_id, sport_id, date, start_hour, end_hour, base_amount, convenience_fee, karma_redeemed, total_amount, payment_method, status, payment_provider, source, guest_name, note, paid_at)
+         VALUES (?,?,?,?,?,?,?,?,?,0,0,?,?,'confirmed','venue',?,?,?,?)`,
+        code, customerId, venueId, court!.id, court!.sport_id, date, start, end, amount, amount, paidNow ? method : "pay_at_venue", source, name, note, paidNow ? new Date().toISOString().slice(0, 19).replace("T", " ") : null,
+      );
+      return Number(r.lastInsertRowid);
+    });
+  } catch (e) {
+    back(e instanceof Error ? e.message : "Could not add booking");
+  }
+  notifyBookingConfirmed(getBooking(bookingId)!, alertTarget(venueId));
+  revalidatePath(`/partner/venues/${venueId}`);
+  back();
+}
+const fmtHourLocal = (h: number) => `${h % 12 === 0 ? 12 : h % 12}:00 ${h >= 12 ? "PM" : "AM"}`;
+
+// ---------- Venue settings (alert phone) ----------
+export async function updateVenueSettings(fd: FormData) {
+  const user = await requireUser();
+  const venueId = num(fd, "venue_id");
+  requireOwner(user.id, venueId);
+  const raw = str(fd, "alert_phone");
+  const wa = raw ? toWaNumber(raw) : null;
+  if (raw && !wa) redirect(`/partner/venues/${venueId}?tab=alerts&error=${encodeURIComponent("Enter a valid WhatsApp number (10 digits or with country code)")}`);
+  run("UPDATE venues SET alert_phone = ? WHERE id = ?", wa, venueId);
+  revalidatePath(`/partner/venues/${venueId}`);
+  redirect(`/partner/venues/${venueId}?tab=alerts&saved=1`);
+}
+
+// ---------- Venue photos ----------
+export async function uploadVenuePhotos(fd: FormData) {
+  const user = await requireUser();
+  const venueId = num(fd, "venue_id");
+  const v = requireOwner(user.id, venueId);
+  const files = fd.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
+  const existing = photosForVenue(venueId).length;
+  const back = (err?: string) => redirect(`/partner/venues/${venueId}?tab=photos${err ? `&error=${encodeURIComponent(err)}` : ""}`);
+  if (!files.length) back("Choose at least one photo.");
+  if (existing + files.length > MAX_PHOTOS_PER_VENUE) back(`You can have up to ${MAX_PHOTOS_PER_VENUE} photos. ${existing} already uploaded.`);
+  const errors: string[] = [];
+  for (const [i, f] of files.entries()) {
+    try {
+      const saved = await savePhoto(f);
+      run("INSERT INTO venue_photos(venue_id, file, thumb, width, height, sort) VALUES (?, ?, ?, ?, ?, ?)", venueId, saved.file, saved.thumb, saved.width, saved.height, existing + i);
+    } catch (e) { errors.push(e instanceof Error ? e.message : `Could not process ${f.name}`); }
+  }
+  revalidatePath(`/venues/${v.slug}`);
+  revalidatePath(`/partner/venues/${venueId}`);
+  back(errors.length ? errors.join(" ") : undefined);
+}
+
+export async function deleteVenuePhoto(fd: FormData) {
+  const user = await requireUser();
+  const venueId = num(fd, "venue_id"), photoId = num(fd, "photo_id");
+  const v = requireOwner(user.id, venueId);
+  const ph = get<{ file: string; thumb: string }>("SELECT file, thumb FROM venue_photos WHERE id = ? AND venue_id = ?", photoId, venueId);
+  if (ph) {
+    run("DELETE FROM venue_photos WHERE id = ?", photoId);
+    run("UPDATE venues SET cover_photo_id = NULL WHERE id = ? AND cover_photo_id = ?", venueId, photoId);
+    deletePhotoFiles(ph.file, ph.thumb);
+  }
+  revalidatePath(`/venues/${v.slug}`);
+  redirect(`/partner/venues/${venueId}?tab=photos`);
+}
+
+export async function setCoverPhoto(fd: FormData) {
+  const user = await requireUser();
+  const venueId = num(fd, "venue_id"), photoId = num(fd, "photo_id");
+  const v = requireOwner(user.id, venueId);
+  if (get("SELECT 1 FROM venue_photos WHERE id = ? AND venue_id = ?", photoId, venueId)) run("UPDATE venues SET cover_photo_id = ? WHERE id = ?", photoId, venueId);
+  revalidatePath(`/venues/${v.slug}`);
+  redirect(`/partner/venues/${venueId}?tab=photos`);
 }
 
 // ---------- Account deletion (required by App Store 5.1.1(v) and Play "account deletion" policy) ----------
